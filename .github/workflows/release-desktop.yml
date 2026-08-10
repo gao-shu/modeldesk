@@ -112,8 +112,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Pass --target to the Tauri CLI (not cargo via `--`), so the bundler
+          # looks under target/<triple>/release instead of target/release.
           if [ -n "${{ matrix.rust_target }}" ]; then
-            pnpm --filter @modeldesk/desktop exec tauri build -- --target "${{ matrix.rust_target }}"
+            pnpm --filter @modeldesk/desktop exec tauri build --target "${{ matrix.rust_target }}"
           else
             pnpm --filter @modeldesk/desktop exec tauri build
           fi
@@ -198,6 +200,6 @@ jobs:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
           GITEE_OWNER: ${{ secrets.GITEE_OWNER }}
           GITEE_REPO: ${{ secrets.GITEE_REPO }}
-          GITEE_TARGET_COMMITISH: ${{ vars.GITEE_TARGET_COMMITISH || 'master' }}
+          GITEE_TARGET_COMMITISH: ${{ vars.GITEE_TARGET_COMMITISH || 'main' }}
           GITEE_TAG: ${{ needs.meta.outputs.tag }}
         run: node scripts/sync-gitee-release.mjs --tag "$GITEE_TAG" --dir release-assets

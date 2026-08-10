@@ -316,7 +316,11 @@ async function main() {
   fs.mkdirSync(resourcesDir, { recursive: true });
   const engineZip = path.join(resourcesDir, "engine.zip");
   rmrf(engineZip);
-  await run("tar", ["-a", "-cf", engineZip, "-C", RUNTIME, "."]);
+  // Windows bsdtar treats `D:` in absolute paths as a remote host (`host:path`).
+  // Use paths relative to REPO so the archive args never contain a drive letter.
+  const engineZipRel = path.relative(REPO, engineZip);
+  const runtimeRel = path.relative(REPO, RUNTIME);
+  await run("tar", ["-a", "-cf", engineZipRel, "-C", runtimeRel, "."]);
   if (!fs.existsSync(engineZip)) {
     throw new Error("failed to create engine.zip");
   }
