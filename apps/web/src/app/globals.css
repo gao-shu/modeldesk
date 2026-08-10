@@ -1,0 +1,161 @@
+@import "tailwindcss";
+@source "../../../../packages/model-registry/src";
+@source "../../../../packages/shared/src";
+
+:root {
+  --background: #fafafa;
+  --foreground: #18181b;
+  --md-control-h: 2.25rem;
+  --md-control-px: 0.75rem;
+  --md-control-radius: 0.375rem;
+  --md-control-border: #d4d4d8;
+  --md-label: #3f3f46;
+  --md-hint: #71717a;
+  --md-main-pad-x: 1.5rem;
+  --md-main-pad-y: 1.5rem;
+  --md-aside-brand-py: 1rem;
+  --md-page-title: 1.25rem;
+  --md-page-title-mb: 1rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC",
+    "Microsoft YaHei", sans-serif;
+  --font-mono:
+    ui-monospace, "SF Mono", "Cascadia Mono", "Segoe UI Mono", Menlo, Consolas,
+    monospace;
+}
+
+html[data-shell="desktop"] {
+  --md-main-pad-x: 1rem;
+  --md-main-pad-y: 0.875rem;
+  --md-aside-brand-py: 0.625rem;
+  --md-page-title: 1.125rem;
+  --md-page-title-mb: 0.75rem;
+  --background: #f4f4f5;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+/* —— Form controls: label above, shared height/type —— */
+.md-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.md-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--md-label);
+}
+
+.md-hint {
+  font-size: 0.6875rem;
+  line-height: 1.35;
+  color: var(--md-hint);
+}
+
+.md-control {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: var(--md-control-h);
+  border-radius: var(--md-control-radius);
+  border: 1px solid var(--md-control-border);
+  background: #fff;
+  padding: 0 var(--md-control-px);
+  font-size: 0.875rem;
+  line-height: 1.25;
+  color: var(--foreground);
+}
+
+.md-control:focus {
+  outline: 2px solid #18181b;
+  outline-offset: 1px;
+}
+
+.md-control:disabled {
+  cursor: not-allowed;
+  background: #f4f4f5;
+  color: #71717a;
+}
+
+textarea.md-control {
+  height: auto;
+  min-height: 5.5rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  resize: vertical;
+}
+
+.md-control-emphasis {
+  border-color: #18181b;
+  background: #fafafa;
+  font-weight: 500;
+}
+
+.md-control-mono {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+}
+
+.md-control-sm {
+  --md-control-h: 1.875rem;
+  font-size: 0.75rem;
+  padding: 0 0.5rem;
+}
+
+select.md-control {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2371717a' d='M3 4.5L6 8l3-3.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.65rem center;
+  padding-right: 1.75rem;
+}
+
+/* Drawer panel */
+@keyframes md-drawer-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.md-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgb(24 24 27 / 0.28);
+}
+
+.md-drawer-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 51;
+  display: flex;
+  height: 100%;
+  width: min(28rem, 100%);
+  flex-direction: column;
+  border-left: 1px solid #e4e4e7;
+  background: #fff;
+  box-shadow: -12px 0 40px rgb(24 24 27 / 0.08);
+  animation: md-drawer-in 180ms ease-out;
+}
+
+html[data-shell="desktop"] .md-drawer-panel {
+  width: min(26rem, 100%);
+}

@@ -1,0 +1,146 @@
+[
+  {
+    "id": "gpt-4o",
+    "name": "GPT-4o",
+    "family": "openai",
+    "category": "chat",
+    "isFeatured": true,
+    "sortOrder": 10,
+    "status": "active"
+  },
+  {
+    "id": "gpt-4o-mini",
+    "name": "GPT-4o mini",
+    "family": "openai",
+    "category": "chat",
+    "isFeatured": true,
+    "sortOrder": 20,
+    "status": "active"
+  },
+  {
+    "id": "gpt-4-1",
+    "name": "GPT-4.1",
+    "family": "openai",
+    "category": "chat",
+    "isFeatured": true,
+    "sortOrder": 15,
+    "status": "active"
+  },
+  {
+    "id": "o3-mini",
+    "name": "o3-mini",
+    "family": "openai",
+    "category": "chat",
+    "isFeatured": false,
+    "sortOrder": 30,
+    "status": "active"
+  },
+  {
+    "id": "claude-sonnet-4",
+    "name": "Claude Sonnet 4",
+    "family": "claude",
+    "category": "chat",
+    "isFeatured": true,
+    "sortOrder": 10,
+    "status": "active"
+  },
+  {
+    "id": "claude-opus-4",
+    "name": "Claude Opus 4",
+    "family": "claude",
+    "category": "chat",
+    "isFeatured": true,
+    "sortOrder": 20,
+    "status": "active"
+  },
+  {
+    "id": "claude-haiku-3-5",
+    "name": "Claude Haiku 3.5",
+    "family": "claude",
+    "category": "chat",
+    "isFeatured": true,
+    "sortOrder": 30,
+    "status": "active"
+  },
+  {
+    "id": "gemini-2-flash",
+    "name": "Gemini 2 Flash",
+    "family": "gemini",
+    "category": "chat",
+    "isFeatured": true,
+    "sortOrder": 10,
+    "status": "active"
+  },
+  {
+    "id": "gemini-2-pro",
+    "name": "Gemini 2 Pro",
+    "family": "gemini",
+    "category": "chat",
+    "isFeatured": true,
+    "sortOrder": 20,
+    "status": "active"
+  },
+  {
+    "id": "gemini-1-5-pro",
+    "name": "Gemini 1.5 Pro",
+    "family": "gemini",
+    "category": "chat",
+    "isFeatured": false,
+    "sortOrder": 30,
+    "status": "active"
+  },
+  {
+    "id": "grok-3",
+    "name": "Grok 3",
+    "family": "grok",
+    "category": "chat",
+    "isFeatured": true,
+    "sortOrder": 10,
+    "status": "active"
+  },
+  {
+    "id": "grok-2",
+    "name": "Grok 2",
+    "family": "grok",
+    "category": "chat",
+    "isFeatured": false,
+    "sortOrder": 20,
+    "status": "active"
+  },
+  {
+    "id": "gpt-image-1",
+    "name": "GPT Image 1",
+    "family": "image",
+    "category": "image",
+    "isFeatured": true,
+    "sortOrder": 10,
+    "status": "active"
+  },
+  {
+    "id": "dall-e-3",
+    "name": "DALL·E 3",
+    "family": "image",
+    "category": "image",
+    "isFeatured": true,
+    "sortOrder": 20,
+    "status": "active"
+  },
+  {
+    "id": "flux-1",
+    "name": "Flux.1",
+    "family": "image",
+    "category": "image",
+    "isFeatured": false,
+    "sortOrder": 30,
+    "status": "active"
+  },
+  {
+    "id": "text-embedding-3-small",
+    "name": "text-embedding-3-small",
+    "family": "openai",
+    "category": "embedding",
+    "isFeatured": false,
+    "sortOrder": 40,
+    "status": "active"
+  }
+]

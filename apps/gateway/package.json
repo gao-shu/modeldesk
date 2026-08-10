@@ -1,0 +1,36 @@
+{
+  "name": "@modeldesk/gateway",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "ModelDesk OpenAI-compatible loopback gateway (chat completions)",
+  "type": "module",
+  "bin": {
+    "modeldesk-gateway": "./bin/modeldesk-gateway.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "tsconfig.json"
+  ],
+  "scripts": {
+    "start": "tsx --tsconfig tsconfig.json src/index.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modeldesk/adapters": "workspace:*",
+    "@modeldesk/object-storage": "workspace:*",
+    "@modeldesk/shared": "workspace:*",
+    "@modeldesk/tos-storage": "workspace:*",
+    "better-sqlite3": "^12.11.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.13.10",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3"
+  }
+}

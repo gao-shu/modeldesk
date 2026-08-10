@@ -1,0 +1,24 @@
+{
+  "name": "@modeldesk/tos-storage",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test:kinds": "tsx --test src/kind.test.ts",
+    "smoke:upload": "tsx scripts/smoke-upload.ts"
+  },
+  "dependencies": {
+    "@volcengine/tos-sdk": "^2.9.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "tsx": "^4.20.3",
+    "typescript": "^5"
+  }
+}

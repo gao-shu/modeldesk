@@ -1,0 +1,44 @@
+{
+  "name": "modeldesk",
+  "private": true,
+  "version": "0.1.0",
+  "description": "ModelDesk — local single-user multimodal API desk",
+  "license": "MIT",
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev": "concurrently -k -n web,radar -c cyan,magenta \"pnpm dev:web\" \"pnpm dev:radar\"",
+    "dev:web": "pnpm --filter @modeldesk/web dev",
+    "dev:radar": "pnpm --filter @modeldesk/radar-api dev",
+    "build": "pnpm --filter @modeldesk/web build",
+    "lint": "pnpm -r --if-present lint",
+    "seed": "pnpm --filter @modeldesk/radar-api seed",
+    "smoke:radar": "node scripts/radar-smoke.mjs",
+    "smoke": "node scripts/smoke-phase1.mjs",
+    "test:radar": "pnpm --filter @modeldesk/radar-api test",
+    "check:oss": "node scripts/check-oss.mjs",
+    "mcp": "pnpm --filter @modeldesk/mcp start",
+    "mcp:smoke": "node scripts/mcp-smoke.mjs",
+    "cli": "pnpm --filter @modeldesk/cli start",
+    "gateway": "pnpm --filter @modeldesk/gateway start",
+    "gateway:smoke": "node scripts/gateway-smoke.mjs",
+    "install:bins": "node scripts/install-agent-bins.mjs",
+    "desktop:sidecar": "node scripts/desktop-sidecar.mjs",
+    "desktop:dev": "pnpm --filter @modeldesk/desktop dev",
+    "desktop:prepare": "node scripts/build-desktop-runtime.mjs",
+    "desktop:build": "pnpm --filter @modeldesk/desktop build",
+    "release:sync-gitee": "node scripts/sync-gitee-release.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "sharp",
+      "unrs-resolver"
+    ]
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
