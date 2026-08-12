@@ -1,0 +1,92 @@
+# Local Docker deploy: web (Next) + radar (Fastify)
+# Usage:
+#   cp .env.docker.example .env.docker   # edit ENCRYPTION_SECRET — never commit .env.docker
+#   docker compose --env-file .env.docker up --build -d
+# Open http://127.0.0.1:${WEB_HOST_PORT:-3020}  (Radar: http://127.0.0.1:9800)
+# Container processes bind 0.0.0.0; do NOT publish host ports to the public internet.
+
+services:
+  radar:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: radar
+    image: modeldesk-radar:local
+    container_name: modeldesk-radar
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      HOST: "0.0.0.0"
+      PORT: "9800"
+      MODELDESK_DATA_DIR: /data
+      MODELDESK_RADAR_DB: /data/radar/modeldesk-radar.sqlite
+      ALLOW_PROBE_PRIVATE: ${ALLOW_PROBE_PRIVATE:-0}
+      MODELDESK_RADAR_ADMIN_TOKEN: ${MODELDESK_RADAR_ADMIN_TOKEN:-}
+      SEED_ON_EMPTY: ${SEED_ON_EMPTY:-1}
+    volumes:
+      - radar-data:/data/radar
+      - ./data/seed:/app/data/seed
+      - ./data/schema:/app/data/schema
+    ports:
+      - "${RADAR_HOST_PORT:-9800}:9800"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:9800/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: web
+      args:
+        RADAR_API_BASE: http://radar:9800
+    image: modeldesk-web:local
+    container_name: modeldesk-web
+    restart: unless-stopped
+    depends_on:
+      radar:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: "3020"
+      HOSTNAME: "0.0.0.0"
+      NEXT_TELEMETRY_DISABLED: "1"
+      MODELDESK_DATA_DIR: /data
+      ENCRYPTION_SECRET: ${ENCRYPTION_SECRET:?Set ENCRYPTION_SECRET in .env.docker}
+      NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-ModelDesk}
+      # Optional TOS (Agnes / public URLs)
+      TOS_BUCKET: ${TOS_BUCKET:-}
+      TOS_ENDPOINT: ${TOS_ENDPOINT:-}
+      TOS_REGION: ${TOS_REGION:-}
+      TOS_ACCESS_KEY: ${TOS_ACCESS_KEY:-}
+      TOS_SECRET_KEY: ${TOS_SECRET_KEY:-}
+      TOS_PUBLIC_BASE_URL: ${TOS_PUBLIC_BASE_URL:-}
+    volumes:
+      # Persist bench SQLite + artifacts; bind host ./data so local migrate stays visible
+      - ./data:/data
+    ports:
+      - "${WEB_HOST_PORT:-3020}:3020"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3020/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  radar-data:

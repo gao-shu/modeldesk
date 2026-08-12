@@ -1,0 +1,50 @@
+[
+  {
+    "providerId": "demo-relay-alpha",
+    "modelId": "claude-sonnet-4",
+    "result": "pass",
+    "method": "manual_probe",
+    "summary": "演示核验记录 #1：pass",
+    "verifiedAt": "2026-07-17T10:00:00Z"
+  },
+  {
+    "providerId": "demo-relay-beta",
+    "modelId": "gpt-4o",
+    "result": "pass",
+    "method": "manual_probe",
+    "summary": "演示核验记录 #2：pass",
+    "verifiedAt": "2026-07-10T12:00:00Z"
+  },
+  {
+    "providerId": "demo-relay-gamma",
+    "modelId": "claude-sonnet-4",
+    "result": "unknown",
+    "method": "manual_probe",
+    "summary": "演示核验记录 #3：unknown",
+    "verifiedAt": "2026-07-16T08:00:00Z"
+  },
+  {
+    "providerId": "demo-relay-delta",
+    "modelId": "gpt-4o",
+    "result": "pass",
+    "method": "manual_probe",
+    "summary": "演示核验记录 #4：pass",
+    "verifiedAt": "2026-07-15T08:00:00Z"
+  },
+  {
+    "providerId": "demo-relay-epsilon",
+    "modelId": "claude-sonnet-4",
+    "result": "fail",
+    "method": "manual_probe",
+    "summary": "演示核验记录 #5：fail",
+    "verifiedAt": "2026-06-01T08:00:00Z"
+  },
+  {
+    "providerId": "demo-relay-zeta",
+    "modelId": "gpt-4o",
+    "result": "pass",
+    "method": "manual_probe",
+    "summary": "演示核验记录 #6：pass",
+    "verifiedAt": "2026-07-14T08:00:00Z"
+  }
+]

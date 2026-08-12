@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "modeldesk": {
+      "command": "C:/Program Files/ModelDesk/engine/node/node.exe",
+      "args": [
+        "C:/Program Files/ModelDesk/engine/agents/mcp.mjs"
+      ],
+      "env": {
+        "MODELDESK_DATA_DIR": "C:/Users/You/AppData/Local/ModelDesk",
+        "MODELDESK_DESKTOP": "1"
+      }
+    }
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://api-radar.local/schema/provider.json",
+  "title": "Provider",
+  "type": "object",
+  "required": [
+    "id",
+    "name",
+    "website",
+    "status",
+    "rankWeight",
+    "authenticityStatus",
+    "priceLevel",
+    "payments",
+    "minTopupCny",
+    "invoiceSupport",
+    "stabilityScore",
+    "imageModelSupport",
+    "lastVerifiedAt",
+    "lastPriceUpdatedAt",
+    "listedAt"
+  ],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "name": { "type": "string", "minLength": 1 },
+    "website": { "type": "string", "format": "uri" },
+    "logoUrl": { "type": "string", "format": "uri" },
+    "summary": { "type": "string" },
+    "status": { "enum": ["active", "hidden", "delisted"] },
+    "rankWeight": { "type": "number", "minimum": 0, "maximum": 100 },
+    "authenticityStatus": { "enum": ["pass", "fail", "unknown"] },
+    "priceLevel": {
+      "type": "array",
+      "items": { "enum": ["low", "mid", "high"] },
+      "minItems": 1
+    },
+    "payments": {
+      "type": "array",
+      "items": {
+        "enum": ["alipay", "wechat", "usdt", "card", "paypal", "stripe"]
+      }
+    },
+    "minTopupCny": { "type": "number", "minimum": 0 },
+    "giftDescription": { "type": "string" },
+    "invoiceSupport": { "enum": ["yes", "no", "conditional"] },
+    "invoiceNote": { "type": "string" },
+    "stabilityScore": {
+      "enum": ["excellent", "fair", "poor", "unknown"]
+    },
+    "imageModelSupport": { "type": "boolean" },
+    "channelType": {
+      "enum": ["official", "mixed", "reverse_suspected", "unknown"]
+    },
+    "channelNote": { "type": "string" },
+    "communityUrl": { "type": "string", "format": "uri" },
+    "affiliateDisclosure": { "type": ["string", "null"] },
+    "lastVerifiedAt": { "type": "string", "format": "date-time" },
+    "lastPriceUpdatedAt": { "type": "string", "format": "date-time" },
+    "listedAt": { "type": "string", "format": "date-time" },
+    "promoCodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "label", "isActive"],
+        "properties": {
+          "code": { "type": "string" },
+          "label": { "type": "string" },
+          "isExclusive": { "type": "boolean" },
+          "isActive": { "type": "boolean" }
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

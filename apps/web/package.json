@@ -1,0 +1,38 @@
+{
+  "name": "@modeldesk/web",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "dev": "next dev --port 3300",
+    "build": "next build",
+    "start": "next start --hostname 0.0.0.0 --port 3300",
+    "lint": "eslint",
+    "test:unit": "node --experimental-strip-types --test src/lib/server/run-core-meta.test.ts"
+  },
+  "dependencies": {
+    "@modeldesk/adapters": "workspace:*",
+    "@modeldesk/model-registry": "workspace:*",
+    "@modeldesk/object-storage": "workspace:*",
+    "@modeldesk/shared": "workspace:*",
+    "@modeldesk/tos-storage": "workspace:*",
+    "better-sqlite3": "^12.11.1",
+    "next": "16.2.10",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "sharp": "^0.35.3",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/sharp": "^0.32.0",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.10",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

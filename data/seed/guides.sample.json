@@ -1,0 +1,29 @@
+[
+  {
+    "slug": "avoid-scams",
+    "title": "选站避雷清单",
+    "category": "avoid",
+    "summary": "如何判断中转站风险",
+    "contentMd": "# 选站避雷\n\n1. 看核验时间\n2. 先小额充值\n3. 警惕异常低价",
+    "status": "published",
+    "publishedAt": "2026-07-01T00:00:00Z"
+  },
+  {
+    "slug": "channel-basics",
+    "title": "渠道科普：直连与中转",
+    "category": "edu",
+    "summary": "基础概念",
+    "contentMd": "# 渠道科普\n\n中转站聚合多模型 API，便于统一接入。",
+    "status": "published",
+    "publishedAt": "2026-07-02T00:00:00Z"
+  },
+  {
+    "slug": "scene-picks",
+    "title": "场景推荐：个人省钱 / 团队发票",
+    "category": "scene",
+    "summary": "按场景选站",
+    "contentMd": "# 场景推荐\n\n个人优先低门槛；团队关注发票与稳定性。",
+    "status": "published",
+    "publishedAt": "2026-07-03T00:00:00Z"
+  }
+]

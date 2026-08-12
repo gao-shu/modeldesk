@@ -1,0 +1,36 @@
+---
+description: Open-source history reset and optional relay adapter policy for ModelDesk
+alwaysApply: true
+---
+
+# ModelDesk — open source & vendor adapters
+
+## Open-source git history
+
+When the user is ready to publish ModelDesk publicly and wants **others to see only the current tree + future commits** (not old history):
+
+1. Ensure the working tree is the final OSS state (no secrets).
+2. Create an orphan root commit, then force-push:
+
+```bash
+git checkout --orphan clean-main
+git add -A
+git commit -m "Initial commit: ModelDesk monorepo"
+git branch -M main
+git push -u origin main --force
+```
+
+Do **not** do this until the user explicitly asks. Scrub `.env` / `.env.local` / `.env.docker` / `*.db` / `.encryption-secret` first.
+
+## Optional relay / mid-station adapters
+
+Image generation uses **OpenAI-compatible** path (`image.openai-compatible`) for generic mid-stations; **async task relays** use opt-in `image.openai-async` (generations/edits → poll `/images/tasks/{id}`).
+
+Compatibility notes:
+
+- Legacy format id `image.shiguang` resolves to `image.openai-async` in `getApiFormat` / `resolveApiFormatId` so existing relay configs keep working.
+- Prefer **explicit `api_format`** over hostname heuristics.
+- For OSS: community relays stay **opt-in** (「社区中转」); do not require third-party domains in the default public experience.
+- Prefer extracting relay-specific logic behind the `api_format` registry / adapter dispatch rather than sprinkling vendor names through UI/core.
+- Vendor capability sheets (doc URLs, matrix, last verified): `docs/adapters/README.md`. When the user asks to verify an adapter, read that sheet + official URLs, report fit, then update UI/`api-formats`/adapters and the sheet together.
+- Before a public push: `pnpm check:oss` (see SECURITY.md / CONTRIBUTING.md).
