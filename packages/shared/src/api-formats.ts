@@ -235,12 +235,14 @@ const REFERENCE_IMAGE_PAIR: RunParamField = {
   hint: "无参考图 / 首帧 / 首尾帧",
 };
 
-/** Seedance 2.x：额外支持多参考图（1–9，role=reference_image）。 */
+/** Seedance 2.x：多参考图（1–9）+ 可选参考音频（须搭配图；role=reference_audio）。 */
 const REFERENCE_IMAGE_PAIR_SEEDANCE: RunParamField = {
   ...REFERENCE_IMAGE_PAIR,
   listKey: "reference_images",
   listMax: 9,
-  hint: "无参考图 / 首帧 / 首尾帧 / 多参（后两者互斥；多参写入 role=reference_image）",
+  audioListKey: "reference_audios",
+  audioListMax: 3,
+  hint: "无 / 首帧 / 首尾帧 / 多参图；可附带参考音频（须同时有图，公网 URL）",
 };
 
 /** Grok：I2V 单张 image.url，或 R2V 多张 reference_images（互斥；无首尾帧；R2V 仅 1.5）。 */
@@ -1119,23 +1121,12 @@ export const API_FORMATS: readonly ApiFormatDef[] = [
       {
         key: "duration_sec",
         label: "时长",
-        type: "select",
+        type: "range",
         defaultValue: "5",
-        options: [
-          { value: "4", label: "4 秒" },
-          { value: "5", label: "5 秒" },
-          { value: "6", label: "6 秒" },
-          { value: "8", label: "8 秒" },
-          { value: "10", label: "10 秒" },
-          { value: "12", label: "12 秒" },
-          { value: "15", label: "15 秒" },
-          {
-            value: "30",
-            label: "30 秒（2.5）",
-            models: ["2-5", "2.5"],
-          },
-          { value: "-1", label: "自动（-1）" },
-        ],
+        min: 4,
+        max: 15,
+        step: 1,
+        hint: "Seedance 2.0：4–15 秒；2.5：4–30 秒；可开「自动」(-1)",
       },
       {
         ...ASPECT_COMMON,
@@ -1204,7 +1195,7 @@ export const API_FORMATS: readonly ApiFormatDef[] = [
       },
       {
         ...REFERENCE_IMAGE_PAIR_SEEDANCE,
-        hint: "无参考图 / 首帧 / 首尾帧 / 多参（最多 9；后两者互斥）；公网 URL / TOS",
+        hint: "无 / 首帧 / 首尾帧 / 多参图（最多 9）；可附参考音频（最多 3，须有图；TOS 公网 URL）",
       },
     ],
   },

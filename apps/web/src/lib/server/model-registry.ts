@@ -14,7 +14,7 @@ import {
 import { createSqliteModelStore } from "./model-registry-store";
 import { getModel, toPublicModel } from "./models";
 import { runModelSmokeTest } from "./smoke-test";
-import { ensurePublicImageUrl } from "./tos";
+import { ensurePublicImageUrl, ensurePublicVoiceUrl } from "./tos";
 
 function combineSignal(
   outer: AbortSignal | undefined,
@@ -146,6 +146,37 @@ async function adapterGenerateVideo(input: VideoGenerateAdapterInput) {
     await Promise.all(referenceImagesRaw.map((r) => ensurePublicImageUrl(r)))
   ).filter((x): x is string => Boolean(x?.trim()));
 
+  const referenceAudiosRaw = (() => {
+    const fromList = params.reference_audios;
+    if (typeof fromList === "string" && fromList.trim()) {
+      const raw = fromList.trim();
+      if (raw.startsWith("[")) {
+        try {
+          const parsed = JSON.parse(raw) as unknown;
+          if (Array.isArray(parsed)) {
+            return parsed
+              .filter((x): x is string => typeof x === "string")
+              .map((x) => x.trim())
+              .filter(Boolean);
+          }
+        } catch {
+          /* fall through */
+        }
+      }
+      return raw ? [raw] : [];
+    }
+    if (Array.isArray(fromList)) {
+      return fromList
+        .filter((x): x is string => typeof x === "string")
+        .map((x) => x.trim())
+        .filter(Boolean);
+    }
+    return [];
+  })();
+  const referenceAudios = (
+    await Promise.all(referenceAudiosRaw.map((r) => ensurePublicVoiceUrl(r)))
+  ).filter((x): x is string => Boolean(x?.trim()));
+
   const http =
     pub.defaults.http &&
     typeof pub.defaults.http === "object" &&
@@ -184,6 +215,7 @@ async function adapterGenerateVideo(input: VideoGenerateAdapterInput) {
     referenceImage,
     referenceImageEnd,
     referenceImages: referenceImages.length > 0 ? referenceImages : undefined,
+    referenceAudios: referenceAudios.length > 0 ? referenceAudios : undefined,
     signal: combineSignal(input.signal, timeoutMs),
     timeoutMs,
     onHttpLog: input.onHttpLog,

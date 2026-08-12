@@ -166,3 +166,13 @@ export async function ensurePublicImageUrl(
   if (/^https?:\/\//i.test(v)) return v;
   return getObjectStorage().ensurePublicUrl(v, { kind: "image" });
 }
+
+/** Public HTTPS for Seedance reference_audio (object-storage kind=voice). */
+export async function ensurePublicVoiceUrl(
+  value: string | undefined | null,
+): Promise<string | undefined> {
+  if (!value?.trim()) return undefined;
+  const v = value.trim();
+  if (/^https?:\/\//i.test(v)) return v;
+  return getObjectStorage().ensurePublicUrl(v, { kind: "voice" });
+}

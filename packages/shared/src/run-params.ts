@@ -11,6 +11,8 @@ export type RunParamModality =
 
 export type RunParamFieldType =
   | "number"
+  /** Integer slider when min/max set (e.g. video duration). */
+  | "range"
   | "select"
   | "text"
   | "textarea"
@@ -70,6 +72,14 @@ export type RunParamField = {
   listKey?: string;
   /** Max items for image_pair listKey mode (default 9). */
   listMax?: number;
+  /**
+   * For image_pair (optional): Seedance-style reference audio list key
+   * (`reference_audios` → content role=reference_audio). Shown when a visual
+   * ref is present (audio alone is rejected by upstream).
+   */
+  audioListKey?: string;
+  /** Max audio refs for audioListKey (default 3). */
+  audioListMax?: number;
   /**
    * For image_pair: show「首尾帧」mode (default true).
    * Set false for providers that only support single I2V + multi R2V (e.g. Grok).

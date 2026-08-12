@@ -35,6 +35,7 @@ export const NAV_SECTIONS: readonly NavSection[] = [
       { href: "/gallery", label: "生成结果", description: "" },
       { href: "/models", label: "模型配置", description: "" },
       { href: "/settings", label: "系统设置", description: "" },
+      { href: "/about", label: "项目说明", description: "" },
     ],
   },
 ] as const;

@@ -84,6 +84,11 @@ export type VideoGenOptions = {
    * Grok R2V → reference_images: [{ url }]。
    */
   referenceImages?: string[];
+  /**
+   * Seedance 2.x 多模态参考音频（公网 URL）：
+   * content[] type=audio_url role=reference_audio；须同时有图或视频参考。
+   */
+  referenceAudios?: string[];
   /** Fired once the outbound HTTP request body is ready (before submit). */
   onHttpLog?: (log: { url: string; body: Record<string, unknown> }) => void;
   /**
@@ -242,6 +247,8 @@ function buildVolcengineArkSubmitBody(options: {
   referenceImageEnd?: string;
   /** Multi refs → role=reference_image (mutually exclusive with first/last). */
   referenceImages?: string[];
+  /** Seedance 2.x → role=reference_audio (requires at least one image/video). */
+  referenceAudios?: string[];
 }): Record<string, unknown> {
   const wan = isWanVideoModel(options.model, options.apiFormat);
   const duration = resolveSeedanceDuration(
@@ -329,6 +336,28 @@ function buildVolcengineArkSubmitBody(options: {
         type: "image_url",
         image_url: { url: options.referenceImageEnd },
         role: "last_frame",
+      });
+    }
+  }
+
+  const audioRefs = (options.referenceAudios ?? [])
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, 3);
+  if (audioRefs.length > 0) {
+    const hasVisual = content.some(
+      (c) => c.type === "image_url" || c.type === "video_url",
+    );
+    if (!hasVisual) {
+      throw new Error(
+        "Seedance 参考音频须同时提供至少一张参考图（或视频）。请先选首帧 / 首尾帧 / 多参图。",
+      );
+    }
+    for (const url of audioRefs) {
+      content.push({
+        type: "audio_url",
+        audio_url: { url },
+        role: "reference_audio",
       });
     }
   }
@@ -553,16 +582,18 @@ function redactImageFieldsForLog(
       out[key] = obj;
     }
   }
-  // 火山方舟 content[].image_url.url
+  // 火山方舟 content[].image_url / audio_url / video_url
   if (Array.isArray(out.content)) {
     out.content = out.content.map((item) => {
       if (!item || typeof item !== "object") return item;
       const c = { ...(item as Record<string, unknown>) };
-      const imageUrl = c.image_url;
-      if (imageUrl && typeof imageUrl === "object" && !Array.isArray(imageUrl)) {
-        const iu = { ...(imageUrl as Record<string, unknown>) };
-        if (typeof iu.url === "string") iu.url = redactUrlValue(iu.url);
-        c.image_url = iu;
+      for (const mediaKey of ["image_url", "audio_url", "video_url"] as const) {
+        const media = c[mediaKey];
+        if (media && typeof media === "object" && !Array.isArray(media)) {
+          const mu = { ...(media as Record<string, unknown>) };
+          if (typeof mu.url === "string") mu.url = redactUrlValue(mu.url);
+          c[mediaKey] = mu;
+        }
       }
       return c;
     });
@@ -699,6 +730,10 @@ export async function generateVideo(
     .map((s) => normalizeReferenceImage(s))
     .filter((s): s is string => Boolean(s))
     .slice(0, 9);
+  const referenceAudios = (options.referenceAudios ?? [])
+    .map((s) => normalizeReferenceImage(s))
+    .filter((s): s is string => Boolean(s))
+    .slice(0, 3);
 
   let submitBody: Record<string, unknown>;
   if (volcengine) {
@@ -706,10 +741,11 @@ export async function generateVideo(
       isVolcengineArkBaseUrl(baseUrl) &&
       ((referenceImage && isDataUriOrRawBase64(referenceImage)) ||
         (referenceImageEnd && isDataUriOrRawBase64(referenceImageEnd)) ||
-        referenceImages.some((u) => isDataUriOrRawBase64(u)))
+        referenceImages.some((u) => isDataUriOrRawBase64(u)) ||
+        referenceAudios.some((u) => isDataUriOrRawBase64(u)))
     ) {
       throw new Error(
-        "火山方舟图生/多参考要求公网可访问的图片 URL（content.image_url），本地 base64 无法被方舟拉取。请开启 TOS 上传，或粘贴公网 URL。",
+        "火山方舟图生/多参考要求公网可访问的媒体 URL（图片/音频），本地 base64 无法被方舟拉取。请开启对象存储上传，或粘贴公网 URL。",
       );
     }
     const fmt = (options.apiFormat ?? "").toLowerCase();
@@ -738,6 +774,7 @@ export async function generateVideo(
       referenceImage,
       referenceImageEnd,
       referenceImages,
+      referenceAudios,
     });
   } else {
     submitBody = {

@@ -239,6 +239,23 @@ function filterFieldOptions(
   });
 }
 
+/** Seedance 2.5 allows duration up to 30s; other Seedance 2.x stay at field.max. */
+function rangeBounds(
+  field: RunParamField,
+  modelId: string | null | undefined,
+): { min: number; max: number; step: number } {
+  const min = field.min ?? 0;
+  let max = field.max ?? 100;
+  const step = field.step ?? 1;
+  if (field.key === "duration_sec" || field.key === "duration") {
+    const mid = (modelId ?? "").toLowerCase();
+    if (mid.includes("2-5") || mid.includes("2.5")) {
+      max = Math.max(max, 30);
+    }
+  }
+  return { min, max, step };
+}
+
 function fieldMatchesProvider(
   field: RunParamField,
   provider: string | null | undefined,
@@ -426,6 +443,195 @@ function readFileAsDataUrl(file: File): Promise<string> {
   return blobToDataUrl(file);
 }
 
+async function resolveLocalAudio(file: File): Promise<string> {
+  const okType =
+    /^audio\/(mpeg|mp3|wav|x-wav|mp4|m4a|aac|ogg|webm)$/i.test(file.type) ||
+    /\.(mp3|wav|m4a|aac|ogg|webm)$/i.test(file.name);
+  if (!okType) {
+    throw new Error("请选择 MP3 / WAV / M4A / AAC / OGG / WebM 音频");
+  }
+  if (file.size > 20 * 1024 * 1024) {
+    throw new Error("音频不能超过 20MB");
+  }
+
+  let configured = false;
+  try {
+    const status = await fetch("/api/upload", { cache: "no-store" });
+    const statusData = (await status.json()) as {
+      configured?: boolean;
+      tosConfigured?: boolean;
+    };
+    configured = Boolean(statusData.configured ?? statusData.tosConfigured);
+  } catch {
+    configured = false;
+  }
+  if (!configured) {
+    throw new Error(
+      "参考音频需要公网 URL。请到「系统设置」开启对象存储后再上传，或直接粘贴公网链接。",
+    );
+  }
+
+  const fd = new FormData();
+  fd.append("file", file, file.name);
+  fd.append("kind", "voice");
+  const res = await fetch("/api/upload", { method: "POST", body: fd });
+  const data = (await res.json()) as {
+    ok: boolean;
+    url?: string;
+    error?: string;
+  };
+  if (!res.ok || !data.ok || !data.url) {
+    throw new Error(data.error ?? "音频上传失败");
+  }
+  return data.url;
+}
+
+/**
+ * Multi audio refs as JSON string array (Seedance reference_audio).
+ * Requires object-storage public URL (Ark cannot fetch data URI audio).
+ */
+function AudioListParamControl({
+  value,
+  disabled,
+  onChange,
+  inputClass,
+  max = 3,
+  compact,
+}: {
+  value: string;
+  disabled?: boolean;
+  onChange: (value: string) => void;
+  inputClass: string;
+  max?: number;
+  compact?: boolean;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [urlDraft, setUrlDraft] = useState("");
+  const items = parseImageList(value);
+
+  const commit = (next: string[]) => onChange(serializeImageList(next));
+
+  const removeAt = (index: number) => {
+    const next = items.slice();
+    next.splice(index, 1);
+    commit(next);
+  };
+
+  const addUrl = (raw: string) => {
+    const url = raw.trim();
+    if (!url) return;
+    if (!/^https?:\/\//i.test(url)) {
+      window.alert("请填写 http(s) 公网音频 URL");
+      return;
+    }
+    if (items.length >= max) {
+      window.alert(`最多 ${max} 段参考音频`);
+      return;
+    }
+    commit([...items, url]);
+    setUrlDraft("");
+  };
+
+  const addFiles = async (files: File[]) => {
+    if (!files.length) return;
+    const room = max - items.length;
+    if (room <= 0) {
+      window.alert(`最多 ${max} 段参考音频`);
+      return;
+    }
+    setUploading(true);
+    try {
+      const urls = await Promise.all(
+        files.slice(0, room).map((f) => resolveLocalAudio(f)),
+      );
+      commit([...items, ...urls.filter(Boolean)]);
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "上传音频失败");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const busy = Boolean(disabled) || uploading;
+
+  return (
+    <div className={compact ? "space-y-1.5" : "space-y-2"}>
+      <div
+        className={`font-medium text-zinc-500 ${compact ? "text-[10px]" : "text-[11px]"}`}
+      >
+        参考音频
+        <span className="ml-1 font-normal text-zinc-400">
+          （最多 {max}；须同时有参考图）
+        </span>
+      </div>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/mp4,audio/aac,audio/ogg,audio/webm,.mp3,.wav,.m4a,.aac,.ogg,.webm"
+        multiple
+        disabled={busy || items.length >= max}
+        className="hidden"
+        onChange={(e) => {
+          const files = e.target.files ? Array.from(e.target.files) : [];
+          e.target.value = "";
+          void addFiles(files);
+        }}
+      />
+      {items.length > 0 ? (
+        <ul className="space-y-1">
+          {items.map((url, index) => (
+            <li
+              key={`${index}-${url.slice(0, 48)}`}
+              className="flex items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50/60 px-2 py-1.5"
+            >
+              <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-zinc-700">
+                音频 {index + 1} · {url}
+              </span>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => removeAt(index)}
+                className="shrink-0 rounded border border-zinc-300 bg-white px-2 py-0.5 text-[11px] text-zinc-600 hover:bg-zinc-50 disabled:opacity-50"
+              >
+                删除
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {items.length < max ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => fileRef.current?.click()}
+            className={`rounded-md border border-dashed border-zinc-300 bg-white text-zinc-600 hover:border-zinc-400 hover:bg-zinc-50 disabled:opacity-50 ${compact ? "px-2.5 py-1 text-[11px]" : "px-3.5 py-1.5 text-sm"}`}
+          >
+            {uploading ? "上传中…" : "上传音频"}
+          </button>
+          <input
+            type="url"
+            value={urlDraft}
+            disabled={busy}
+            placeholder="或粘贴音频 URL 后回车"
+            onChange={(e) => setUrlDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter") return;
+              e.preventDefault();
+              addUrl(urlDraft);
+            }}
+            onBlur={() => {
+              if (urlDraft.trim()) addUrl(urlDraft);
+            }}
+            className={`${inputClass} min-w-[12rem] flex-1`}
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 type ImagePairMode = "none" | "ref" | "pair" | "refs";
 
 function deriveImagePairMode(
@@ -445,6 +651,8 @@ function ImagePairParamControl({
   endValue,
   listValue,
   listMax,
+  audioListValue,
+  audioListMax,
   allowMultiRefs,
   allowPair = true,
   refModeLabel = "参考图",
@@ -452,6 +660,7 @@ function ImagePairParamControl({
   onChangeStart,
   onChangeEnd,
   onChangeList,
+  onChangeAudioList,
   inputClass,
   compact,
 }: {
@@ -459,6 +668,8 @@ function ImagePairParamControl({
   endValue: string;
   listValue?: string;
   listMax?: number;
+  audioListValue?: string;
+  audioListMax?: number;
   allowMultiRefs?: boolean;
   /** When false, hide「首尾帧」(e.g. Grok I2V + R2V only). */
   allowPair?: boolean;
@@ -468,10 +679,12 @@ function ImagePairParamControl({
   onChangeStart: (value: string) => void;
   onChangeEnd: (value: string) => void;
   onChangeList?: (value: string) => void;
+  onChangeAudioList?: (value: string) => void;
   inputClass: string;
   compact?: boolean;
 }) {
   const listRaw = listValue ?? "";
+  const audioRaw = audioListValue ?? "";
   const [mode, setMode] = useState<ImagePairMode>(() =>
     deriveImagePairMode(startValue, endValue, listRaw),
   );
@@ -494,12 +707,17 @@ function ImagePairParamControl({
     if (listRaw && onChangeList) onChangeList("");
   };
 
+  const clearAudio = () => {
+    if (audioRaw && onChangeAudioList) onChangeAudioList("");
+  };
+
   const setModeAndValues = (next: ImagePairMode) => {
     setMode(next);
     if (next === "none") {
       if (startValue) onChangeStart("");
       if (endValue) onChangeEnd("");
       clearList();
+      clearAudio();
       return;
     }
     if (next === "ref") {
@@ -521,8 +739,12 @@ function ImagePairParamControl({
     { id: "none", label: "无" },
     { id: "ref", label: refModeLabel },
     ...(allowPair ? [{ id: "pair" as const, label: "首尾帧" }] : []),
-    ...(allowMultiRefs ? [{ id: "refs" as const, label: "多参考" }] : []),
+    ...(allowMultiRefs ? [{ id: "refs" as const, label: "多参" }] : []),
   ];
+
+  const showAudio =
+    Boolean(onChangeAudioList) &&
+    (mode === "ref" || mode === "pair" || mode === "refs");
 
   return (
     <div className={compact ? "space-y-1.5" : "space-y-2"}>
@@ -601,6 +823,17 @@ function ImagePairParamControl({
           onChange={onChangeList}
           inputClass={inputClass}
           max={listMax ?? 9}
+          compact={compact}
+        />
+      ) : null}
+
+      {showAudio && onChangeAudioList ? (
+        <AudioListParamControl
+          value={audioRaw}
+          disabled={disabled}
+          onChange={onChangeAudioList}
+          inputClass={inputClass}
+          max={audioListMax ?? 3}
           compact={compact}
         />
       ) : null}
@@ -993,9 +1226,24 @@ export function RunParamsFields({
         return true;
       });
 
-  // Snap invalid selects back onto allowed options.
+  // Snap invalid selects; clamp range when model max changes (e.g. 2.5 → 2.0).
   useEffect(() => {
     for (const field of fields) {
+      if (field.type === "range") {
+        const { min, max } = rangeBounds(field, modelId);
+        const raw = values[field.key] ?? field.defaultValue;
+        if (raw === "-1") continue;
+        const n = Number(raw);
+        if (!Number.isFinite(n)) {
+          onChange(field.key, field.defaultValue);
+          continue;
+        }
+        const clamped = Math.min(max, Math.max(min, Math.round(n)));
+        if (String(clamped) !== String(raw)) {
+          onChange(field.key, String(clamped));
+        }
+        continue;
+      }
       if (field.type !== "select" || !field.options?.length) continue;
       const options = filterFieldOptions(
         field.options,
@@ -1080,6 +1328,7 @@ export function RunParamsFields({
           const isWide =
             field.type === "text" ||
             field.type === "textarea" ||
+            field.type === "range" ||
             field.type === "image" ||
             field.type === "image_list" ||
             field.type === "image_pair";
@@ -1089,6 +1338,18 @@ export function RunParamsFields({
               field.type === "image_pair") &&
             objectStorageReady === false &&
             field.key === firstImageFieldKey;
+
+          const bounds =
+            field.type === "range"
+              ? rangeBounds(field, modelId)
+              : null;
+          const rangeAuto = field.type === "range" && value === "-1";
+          const rangeSliderValue = (() => {
+            if (!bounds) return 0;
+            const n = Number(value);
+            if (!Number.isFinite(n) || n < 0) return bounds.min;
+            return Math.min(bounds.max, Math.max(bounds.min, Math.round(n)));
+          })();
 
           const control =
             field.type === "select" ? (
@@ -1128,6 +1389,47 @@ export function RunParamsFields({
                 onChange={(e) => onChange(field.key, e.target.value)}
                 className={`${inputClass} font-mono`}
               />
+            ) : field.type === "range" && bounds ? (
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <input
+                  type="range"
+                  min={bounds.min}
+                  max={bounds.max}
+                  step={bounds.step}
+                  value={rangeSliderValue}
+                  disabled={fieldDisabled || rangeAuto}
+                  title={fieldHint}
+                  onChange={(e) => onChange(field.key, e.target.value)}
+                  className="min-w-0 flex-1 accent-zinc-900 disabled:opacity-40"
+                />
+                <span className="w-10 shrink-0 text-right font-mono text-xs text-zinc-800">
+                  {rangeAuto ? "自动" : `${rangeSliderValue}s`}
+                </span>
+                <label
+                  className={`flex shrink-0 items-center gap-1 text-zinc-600 ${
+                    compact ? "text-[11px]" : "text-xs"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={rangeAuto}
+                    disabled={fieldDisabled}
+                    onChange={(e) =>
+                      onChange(
+                        field.key,
+                        e.target.checked
+                          ? "-1"
+                          : String(
+                              Number.isFinite(Number(field.defaultValue))
+                                ? field.defaultValue
+                                : bounds.min,
+                            ),
+                      )
+                    }
+                  />
+                  自动
+                </label>
+              </div>
             ) : field.type === "textarea" ? (
               <textarea
                 value={value}
@@ -1158,13 +1460,19 @@ export function RunParamsFields({
               />
             ) : field.type === "image_pair" && endKey ? (
               <ImagePairParamControl
-                key={`pair-${apiFormat ?? modality}-${modelId ?? ""}-${field.key}-${endKey}-${field.listKey ?? ""}`}
+                key={`pair-${apiFormat ?? modality}-${modelId ?? ""}-${field.key}-${endKey}-${field.listKey ?? ""}-${field.audioListKey ?? ""}`}
                 startValue={value}
                 endValue={values[endKey] ?? ""}
                 listValue={
                   field.listKey ? (values[field.listKey] ?? "") : undefined
                 }
                 listMax={field.listMax}
+                audioListValue={
+                  field.audioListKey
+                    ? (values[field.audioListKey] ?? "")
+                    : undefined
+                }
+                audioListMax={field.audioListMax}
                 allowMultiRefs={Boolean(field.listKey?.trim())}
                 allowPair={field.allowPair !== false}
                 refModeLabel={field.refModeLabel}
@@ -1174,6 +1482,11 @@ export function RunParamsFields({
                 onChangeList={
                   field.listKey
                     ? (next) => onChange(field.listKey!, next)
+                    : undefined
+                }
+                onChangeAudioList={
+                  field.audioListKey
+                    ? (next) => onChange(field.audioListKey!, next)
                     : undefined
                 }
                 inputClass={inputClass}
