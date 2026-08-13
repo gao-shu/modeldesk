@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/) when tagg
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-08-13
+
+### Changed
+
+- Desktop release：本版 CI **仅打包 Windows**（跳过 macOS）；workflow 支持 `platforms=windows|macos|all`
+- Active run 轮询改为 5 秒；视频最长等待 30 分钟，离开页面后仍可同步状态
+
 ## [0.2.0] - 2026-08-13
 
 ### Removed

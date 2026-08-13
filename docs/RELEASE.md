@@ -8,14 +8,16 @@
 git tag v0.1.0 → push
         ↓
 GitHub Actions「Release desktop」
-  ├─ Windows x64  → .exe (NSIS)
-  ├─ macOS arm64  → .dmg
+  ├─ Windows x64  → .exe (NSIS)   ← tag 推送默认只打 Windows
+  ├─ macOS arm64  → .dmg          ← workflow_dispatch 选 macos / all
   └─ macOS x64    → .dmg
         ↓
 GitHub Release（同 tag）
         ↓
 （若配置了 Secrets）上传到 Gitee 同名 Release
 ```
+
+手动重跑时可在 Actions → **Release desktop** → Run workflow 选择 `platforms`：`windows`（默认）/ `macos` / `all`。
 
 ## 第一次配置（约 10 分钟）
 

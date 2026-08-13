@@ -1,9 +1,9 @@
-# Build Windows + macOS desktop installers, publish GitHub Release,
+# Build desktop installers, publish GitHub Release,
 # then optionally sync the same assets to Gitee Releases.
 #
 # Trigger:
 #   git tag v0.1.0 && git push origin v0.1.0
-#   or Actions → Release desktop → Run workflow (input tag)
+#   or Actions → Release desktop → Run workflow (tag + platforms)
 #
 # Secrets (repo → Settings → Secrets and variables → Actions):
 #   GITEE_TOKEN / GITEE_OWNER / GITEE_REPO
@@ -21,6 +21,15 @@ on:
         description: "Existing git tag to build (e.g. v0.1.0)"
         required: true
         type: string
+      platforms:
+        description: "Which installers to build"
+        required: true
+        type: choice
+        options:
+          - windows
+          - macos
+          - all
+        default: windows
 
 concurrency:
   group: release-desktop-${{ github.ref }}-${{ inputs.tag || github.ref_name }}
@@ -35,23 +44,43 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.resolve.outputs.tag }}
+      matrix: ${{ steps.resolve.outputs.matrix }}
     steps:
-      - name: Resolve tag
+      - name: Resolve tag and matrix
         id: resolve
         shell: bash
         run: |
           set -euo pipefail
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             TAG="${{ inputs.tag }}"
+            PLATFORMS="${{ inputs.platforms }}"
           else
             TAG="${{ github.ref_name }}"
+            # Tag push: Windows only for now (skip macOS). Re-enable with all later.
+            PLATFORMS="windows"
           fi
           if [[ ! "$TAG" =~ ^v[0-9] ]]; then
             echo "Tag must look like v0.1.0 (got: $TAG)" >&2
             exit 1
           fi
+
+          WINDOWS='{"os":"windows-latest","rust_target":"","node_platform":"win-x64","artifact_name":"windows-x64"}'
+          MAC_ARM='{"os":"macos-latest","rust_target":"aarch64-apple-darwin","node_platform":"darwin-arm64","artifact_name":"macos-aarch64"}'
+          MAC_X64='{"os":"macos-latest","rust_target":"x86_64-apple-darwin","node_platform":"darwin-x64","artifact_name":"macos-x64"}'
+
+          case "$PLATFORMS" in
+            windows) MATRIX="[$WINDOWS]" ;;
+            macos) MATRIX="[$MAC_ARM,$MAC_X64]" ;;
+            all) MATRIX="[$WINDOWS,$MAC_ARM,$MAC_X64]" ;;
+            *)
+              echo "Unknown platforms: $PLATFORMS" >&2
+              exit 1
+              ;;
+          esac
+
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "Releasing $TAG"
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          echo "Releasing $TAG (platforms=$PLATFORMS)"
 
   build:
     name: build (${{ matrix.artifact_name }})
@@ -59,19 +88,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: windows-latest
-            rust_target: ""
-            node_platform: win-x64
-            artifact_name: windows-x64
-          - os: macos-latest
-            rust_target: aarch64-apple-darwin
-            node_platform: darwin-arm64
-            artifact_name: macos-aarch64
-          - os: macos-latest
-            rust_target: x86_64-apple-darwin
-            node_platform: darwin-x64
-            artifact_name: macos-x64
+        include: ${{ fromJSON(needs.meta.outputs.matrix) }}
 
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
