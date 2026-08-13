@@ -8,13 +8,13 @@
 
 | 下载 | 地址 |
 |------|------|
-| **Windows 安装包**（推荐国内） | [Gitee · v0.1.0](https://gitee.com/gaoshuteacher/modeldesk/releases/tag/v0.1.0) |
-| **Win / macOS 全量包** | [GitHub · v0.1.0](https://github.com/gao-shu/modeldesk/releases/tag/v0.1.0) |
+| **Windows 安装包**（推荐国内） | [Gitee · v0.2.1](https://gitee.com/gaoshuteacher/modeldesk/releases/tag/v0.2.1) |
+| **Win / macOS 全量包** | [GitHub · v0.2.1](https://github.com/gao-shu/modeldesk/releases/tag/v0.2.1) |
 | **Gitee 源码** | [gaoshuteacher/modeldesk](https://gitee.com/gaoshuteacher/modeldesk) |
 
 > Gitee 单附件约有 **100MB** 上限，发行版目前放 **Windows `.exe`**；macOS `.dmg` 请从 GitHub 下载。
 
-**新手：** [5 分钟跑通第一张图](./docs/quickstart-first-image.md)
+**新手：** [5 分钟跑通第一张图](./docs/quickstart-first-image.md) · **操作手册（图文）：** [docs/user-guide.md](./docs/user-guide.md)
 
 ## 界面预览
 
@@ -34,7 +34,7 @@
 
 ![模型配置](./docs/screenshots/models.png)
 
-↓ 下载安装包，本地配 Key 即可开测 → [Gitee（Win）](https://gitee.com/gaoshuteacher/modeldesk/releases/tag/v0.1.0) · [GitHub（全量）](https://github.com/gao-shu/modeldesk/releases/tag/v0.1.0)
+↓ 下载安装包，本地配 Key 即可开测 → [Gitee（Win）](https://gitee.com/gaoshuteacher/modeldesk/releases/tag/v0.2.1) · [GitHub（全量）](https://github.com/gao-shu/modeldesk/releases/tag/v0.2.1)
 
 > **定位说明**  
 > - **个人本机**工具：无登录、无多租户、无配置云同步、不卖 Token  
@@ -63,9 +63,9 @@
 
 ## 普通用户：装桌面端（推荐）
 
-完整步骤见 **[5 分钟跑通第一张图](./docs/quickstart-first-image.md)**。摘要：
+完整步骤见 **[5 分钟跑通第一张图](./docs/quickstart-first-image.md)**；图文操作见 **[操作手册](./docs/user-guide.md)**。摘要：
 
-1. 打开 [GitHub](https://github.com/gao-shu/modeldesk/releases/tag/v0.1.0) 或 [Gitee](https://gitee.com/gaoshuteacher/modeldesk/releases/tag/v0.1.0) 发行版，下载对应系统安装包。  
+1. 打开 [GitHub](https://github.com/gao-shu/modeldesk/releases/tag/v0.2.1) 或 [Gitee](https://gitee.com/gaoshuteacher/modeldesk/releases/tag/v0.2.1) 发行版，下载对应系统安装包。  
 2. 安装并启动 **ModelDesk**（首次解压引擎可能需 1～2 分钟）。  
 3. 打开 **模型配置**，填入自己的 API Key 并保存。  
 4. 进入 **图片** 实测跑一次；在 **生成结果 / 历史** 查看。  
@@ -182,6 +182,7 @@ modeldesk/
 ├── apps/cli · mcp · gateway
 ├── packages/          # 适配器、模型注册、共享类型等
 ├── docs/adapters/     # 厂商协议对照
+├── docs/user-guide.md # 操作手册（图文）
 ├── docs/external-access.md
 └── docs/RELEASE.md    # 桌面发版（GitHub → 可选同步 Gitee）
 ```

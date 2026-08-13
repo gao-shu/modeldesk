@@ -54,4 +54,4 @@ Windows 数据默认在：`%LOCALAPPDATA%\ModelDesk\`。
 | 运行报鉴权 / 404 | 核对 Base URL、模型 ID 是否与厂商文档一致 |
 | 磁盘变大 | **系统设置 → 磁盘占用 → 清理生成结果** |
 
-更完整的能力说明见仓库根目录 [README.md](../README.md)。
+更完整的操作图文见 [user-guide.md](./user-guide.md)；能力说明见仓库根目录 [README.md](../README.md)。
