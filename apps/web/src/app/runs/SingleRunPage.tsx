@@ -568,17 +568,22 @@ export function SingleRunPage({ modality }: { modality: Modality }) {
     const st = item.job?.status ?? item.run.status;
     if (st === "running" || st === "queued") {
       const resp = item.job?.response ?? null;
-      const progress =
+      const rawProgress =
         resp &&
         resp._progress &&
         typeof resp._progress === "object" &&
         !Array.isArray(resp._progress)
-          ? (resp._progress as {
-              status?: string | null;
-              detail?: string | null;
-              at?: string | null;
-            })
+          ? (resp._progress as Record<string, unknown>)
           : null;
+      const progress = rawProgress
+        ? {
+            status:
+              typeof rawProgress.status === "string" ? rawProgress.status : null,
+            detail:
+              rawProgress.detail != null ? String(rawProgress.detail) : null,
+            at: typeof rawProgress.at === "string" ? rawProgress.at : null,
+          }
+        : null;
       const liveMsg = getRunSnapById(viewedRun.runId)?.statusMsg;
       const nextMsg =
         liveMsg ||
