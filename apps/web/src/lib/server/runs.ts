@@ -435,6 +435,127 @@ export function listRecentSingleRuns(
   });
 }
 
+export type ActiveRunProgress = {
+  status: string | null;
+  detail: string | null;
+  at: string | null;
+};
+
+/** Slim in-flight row for status polling (not the history list). */
+export type ActiveRunSummary = {
+  runId: string;
+  jobId: string;
+  modelId: string;
+  modality: string;
+  prompt: string;
+  /** Job status (`running` | `queued`). */
+  status: string;
+  runStatus: string;
+  progress: ActiveRunProgress | null;
+  error: string | null;
+  params: Record<string, unknown> | null;
+  updatedAt: string;
+};
+
+function progressFromResponse(
+  response: Record<string, unknown>,
+): ActiveRunProgress | null {
+  const raw = response._progress;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const p = raw as Record<string, unknown>;
+  return {
+    status: typeof p.status === "string" ? p.status : null,
+    detail: p.detail != null ? String(p.detail) : null,
+    at: typeof p.at === "string" ? p.at : null,
+  };
+}
+
+/**
+ * In-flight single runs only — lightweight fields for client status sync.
+ * Calls orphan sweep so history does not stick on「进行中」after crash.
+ */
+export function listActiveRuns(limit = 50): ActiveRunSummary[] {
+  ensureOrphansCleaned();
+  const cap = Math.min(Math.max(limit, 1), 100);
+  const rows = getDb()
+    .prepare(
+      `SELECT
+         r.id AS run_id,
+         r.status AS run_status,
+         r.config_snapshot AS config_snapshot,
+         j.id AS job_id,
+         j.model_id AS model_id,
+         j.status AS job_status,
+         j.error AS error,
+         j.response_json AS response_json,
+         j.created_at AS job_created_at
+       FROM eval_jobs j
+       INNER JOIN eval_runs r ON r.id = j.run_id
+       WHERE r.mode = 'single'
+         AND j.status IN ('running', 'queued')
+       ORDER BY j.created_at DESC
+       LIMIT ?`,
+    )
+    .all(cap) as Array<{
+    run_id: string;
+    run_status: string;
+    config_snapshot: string;
+    job_id: string;
+    model_id: string;
+    job_status: string;
+    error: string | null;
+    response_json: string | null;
+    job_created_at: string;
+  }>;
+
+  return rows.map((row) => {
+    const config = parseJsonObject(row.config_snapshot);
+    const response = row.response_json
+      ? parseJsonObject(row.response_json)
+      : {};
+    const progress = progressFromResponse(response);
+    const params =
+      config.params &&
+      typeof config.params === "object" &&
+      !Array.isArray(config.params)
+        ? (config.params as Record<string, unknown>)
+        : null;
+    return {
+      runId: row.run_id,
+      jobId: row.job_id,
+      modelId: row.model_id,
+      modality:
+        typeof config.modality === "string" ? config.modality : "text",
+      prompt: typeof config.prompt === "string" ? config.prompt : "",
+      status: row.job_status,
+      runStatus: row.run_status,
+      progress,
+      error: row.error,
+      params,
+      updatedAt: progress?.at ?? row.job_created_at,
+    };
+  });
+}
+
+/** Single run + primary job (for by-id status / detail). */
+export function getRunWithJob(runId: string): {
+  run: EvalRunPublic;
+  job: EvalJobPublic | null;
+} | null {
+  ensureOrphansCleaned();
+  const run = getRun(runId);
+  if (!run) return null;
+  const job = getDb()
+    .prepare(
+      `SELECT * FROM eval_jobs WHERE run_id = ? ORDER BY created_at ASC LIMIT 1`,
+    )
+    .get(runId) as EvalJobRow | undefined;
+  return {
+    run: toPublicRun(run),
+    job: job ? toPublicJob(job) : null,
+  };
+}
+
 export function getVoteForRun(runId: string): VotePublic | null {
   const row = getDb()
     .prepare(

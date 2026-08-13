@@ -118,6 +118,36 @@ export function getRunningCount(): number {
   return runningCount();
 }
 
+/** Focus a local session by server run id (e.g. history「查看」进行中任务). */
+export function focusRunById(runId: string): ActiveRunSnapshot | null {
+  const id = runId.trim();
+  if (!id) return null;
+  for (const [localId, s] of sessions) {
+    if (s.snap.runId === id) {
+      focusedLocalId = localId;
+      emit();
+      return focusedSnap();
+    }
+  }
+  return null;
+}
+
+/** Snapshot for a run id without changing focus. */
+export function getRunSnapById(runId: string): ActiveRunSnapshot | null {
+  const id = runId.trim();
+  if (!id) return null;
+  for (const s of sessions.values()) {
+    if (s.snap.runId === id) {
+      return {
+        ...s.snap,
+        runningCount: runningCount(),
+        updatedAt: Date.now(),
+      };
+    }
+  }
+  return null;
+}
+
 /**
  * Drop finished/failed session display so navigating back to the page
  * shows a blank output. Keeps sessions that are still running (live SSE
@@ -318,9 +348,22 @@ export async function startActiveSingleRun(input: {
           const status = String(payload.status ?? "");
           const detail =
             payload.detail != null ? String(payload.detail) : null;
-          patch({
-            statusMsg: detail ? `${status}: ${detail}` : status,
-          });
+          // 详情已含进度（如 queued 20%）时直接展示，避免 "running: queued 20%" 冗余
+          let statusMsg: string;
+          if (detail && /\d+\s*%/.test(detail)) {
+            statusMsg = detail.replace(
+              /^(queued|pending)\b/i,
+              "排队中",
+            ).replace(
+              /^(in_progress|processing|running)\b/i,
+              "生成中",
+            );
+          } else if (detail) {
+            statusMsg = `${status}: ${detail}`;
+          } else {
+            statusMsg = status;
+          }
+          patch({ statusMsg });
         } else if (event === "usage") {
           patch({
             inputTokens:
@@ -507,29 +550,138 @@ type ServerRunRow = {
   } | null;
 };
 
-/** Align local session `running` flags with DB / provided history rows. */
+export type ActiveRunProgress = {
+  status: string | null;
+  detail: string | null;
+  at: string | null;
+};
+
+export type ActiveRunSummary = {
+  runId: string;
+  jobId: string;
+  modelId: string;
+  modality: string;
+  prompt: string;
+  status: string;
+  runStatus: string;
+  progress: ActiveRunProgress | null;
+  error: string | null;
+  params: Record<string, unknown> | null;
+  updatedAt: string;
+};
+
+/** Human-readable status line from active progress (matches SSE mapping). */
+export function formatActiveStatusMsg(
+  status: string,
+  progress: ActiveRunProgress | null | undefined,
+): string {
+  const detail = progress?.detail?.trim() || null;
+  const base = (progress?.status || status || "").trim() || "running";
+  if (detail && /\d+\s*%/.test(detail)) {
+    return detail
+      .replace(/^(queued|pending)\b/i, "排队中")
+      .replace(/^(in_progress|processing|running)\b/i, "生成中");
+  }
+  if (detail) return `${base}: ${detail}`;
+  if (base === "queued") return "排队中…";
+  return base === "running" ? "进行中…" : base;
+}
+
+export async function fetchActiveRuns(): Promise<ActiveRunSummary[]> {
+  const res = await fetch("/api/runs/active");
+  const data = (await res.json()) as {
+    ok: boolean;
+    runs?: ActiveRunSummary[];
+  };
+  if (!data.ok || !data.runs) return [];
+  return data.runs;
+}
+
+async function fetchRunById(runId: string): Promise<ServerRunRow | null> {
+  const res = await fetch(`/api/runs/${encodeURIComponent(runId)}`);
+  const data = (await res.json()) as {
+    ok: boolean;
+    run?: ServerRunRow["run"];
+    job?: ServerRunRow["job"];
+  };
+  if (!data.ok || !data.run) return null;
+  return { run: data.run, job: data.job ?? null };
+}
+
+function applyTerminalJob(
+  localId: string,
+  hit: ServerRunRow,
+  sessionModality: string,
+): void {
+  if (!hit.job) return;
+  const artifactId =
+    hit.job.response && typeof hit.job.response.artifactId === "string"
+      ? hit.job.response.artifactId
+      : null;
+  const rawArtifactIds =
+    hit.job.response && Array.isArray(hit.job.response.artifactIds)
+      ? (hit.job.response.artifactIds as string[]).filter(
+          (v) => typeof v === "string",
+        )
+      : null;
+  const cancelled =
+    hit.job.status === "cancelled" || hit.run.status === "cancelled";
+  const succeeded = hit.job.status === "succeeded";
+  const session = sessions.get(localId);
+
+  patchSession(localId, {
+    running: false,
+    statusMsg: cancelled
+      ? "已取消"
+      : succeeded
+        ? "已完成（已从服务器同步）"
+        : null,
+    error: cancelled ? null : hit.job.error,
+    output:
+      hit.job.response && typeof hit.job.response.content === "string"
+        ? hit.job.response.content
+        : (session?.snap.output ?? ""),
+    latencyMs: hit.job.latencyMs,
+    inputTokens: hit.job.inputTokens,
+    outputTokens: hit.job.outputTokens,
+    artifactId,
+    artifactIds: rawArtifactIds,
+    modality:
+      typeof hit.run.config.modality === "string"
+        ? hit.run.config.modality
+        : sessionModality,
+  });
+}
+
+/**
+ * Align local session `running` flags with DB.
+ * Prefer lightweight `/api/runs/active`; missing ids fall back to `/api/runs/:id`.
+ * Optional `knownRuns` (e.g. just-fetched history page) still applied for terminal rows.
+ * Pass `activeHint` when the caller already fetched `/api/runs/active` this tick.
+ */
 export async function reconcileSessionsFromServer(
   knownRuns?: ServerRunRow[],
-): Promise<void> {
+  activeHint?: ActiveRunSummary[],
+): Promise<ActiveRunSummary[]> {
   const locals = [...sessions.values()].filter((s) => s.snap.running);
-  if (locals.length === 0) return;
+  if (locals.length === 0) {
+    return activeHint ?? [];
+  }
 
   // Live SSE sessions get done/error from the stream — skip fetch if nothing else to sync.
   const needsSync = locals.some((s) => !s.live || !s.snap.runId);
-  if (!needsSync && knownRuns == null) return;
-
-  let runs = knownRuns;
-  if (!runs) {
-    const res = await fetch("/api/runs/single?limit=30");
-    const data = (await res.json()) as {
-      ok: boolean;
-      runs?: ServerRunRow[];
-    };
-    if (!data.ok || !data.runs) return;
-    runs = data.runs;
+  if (!needsSync && knownRuns == null && activeHint == null) {
+    return [];
   }
 
-  const byId = new Map(runs.map((r) => [r.run.id, r]));
+  const active =
+    activeHint ??
+    (needsSync || knownRuns == null
+      ? await fetchActiveRuns().catch(() => [] as ActiveRunSummary[])
+      : []);
+  const activeById = new Map(active.map((r) => [r.runId, r]));
+  const knownById = new Map((knownRuns ?? []).map((r) => [r.run.id, r]));
+
   let changed = false;
   const now = Date.now();
 
@@ -549,8 +701,39 @@ export async function reconcileSessionsFromServer(
 
     if (session.live) continue;
 
-    const hit = byId.get(session.snap.runId);
-    if (!hit?.job) {
+    const runId = session.snap.runId;
+    const activeHit = activeById.get(runId);
+    if (activeHit) {
+      const nextMsg = formatActiveStatusMsg(
+        activeHit.status,
+        activeHit.progress,
+      );
+      if (nextMsg !== session.snap.statusMsg) {
+        patchSession(session.localId, { statusMsg: nextMsg });
+        changed = true;
+      }
+      continue;
+    }
+
+    const known = knownById.get(runId);
+    if (
+      known?.job &&
+      (known.job.status === "running" || known.job.status === "queued")
+    ) {
+      continue;
+    }
+    if (
+      known?.job &&
+      known.job.status !== "running" &&
+      known.job.status !== "queued"
+    ) {
+      applyTerminalJob(session.localId, known, session.snap.modality);
+      changed = true;
+      continue;
+    }
+
+    const byId = await fetchRunById(runId);
+    if (!byId?.job) {
       if (now - session.startedAt > 45_000) {
         patchSession(session.localId, {
           running: false,
@@ -561,48 +744,28 @@ export async function reconcileSessionsFromServer(
       }
       continue;
     }
-    if (hit.job.status === "running" || hit.job.status === "queued") continue;
+    if (byId.job.status === "running" || byId.job.status === "queued") {
+      const progress =
+        byId.job.response &&
+        byId.job.response._progress &&
+        typeof byId.job.response._progress === "object" &&
+        !Array.isArray(byId.job.response._progress)
+          ? (byId.job.response._progress as ActiveRunProgress)
+          : null;
+      const nextMsg = formatActiveStatusMsg(byId.job.status, progress);
+      if (nextMsg !== session.snap.statusMsg) {
+        patchSession(session.localId, { statusMsg: nextMsg });
+        changed = true;
+      }
+      continue;
+    }
 
-    const artifactId =
-      hit.job.response && typeof hit.job.response.artifactId === "string"
-        ? hit.job.response.artifactId
-        : null;
-    const rawArtifactIds =
-      hit.job.response && Array.isArray(hit.job.response.artifactIds)
-        ? (hit.job.response.artifactIds as string[]).filter(
-            (v) => typeof v === "string",
-          )
-        : null;
-    const cancelled =
-      hit.job.status === "cancelled" || hit.run.status === "cancelled";
-    const succeeded = hit.job.status === "succeeded";
-
-    patchSession(session.localId, {
-      running: false,
-      statusMsg: cancelled
-        ? "已取消"
-        : succeeded
-          ? "已完成（已从服务器同步）"
-          : null,
-      error: cancelled ? null : hit.job.error,
-      output:
-        hit.job.response && typeof hit.job.response.content === "string"
-          ? hit.job.response.content
-          : session.snap.output,
-      latencyMs: hit.job.latencyMs,
-      inputTokens: hit.job.inputTokens,
-      outputTokens: hit.job.outputTokens,
-      artifactId,
-      artifactIds: rawArtifactIds,
-      modality:
-        typeof hit.run.config.modality === "string"
-          ? hit.run.config.modality
-          : session.snap.modality,
-    });
+    applyTerminalJob(session.localId, byId, session.snap.modality);
     changed = true;
   }
 
   if (changed) pruneIdleSessions();
+  return active;
 }
 
 function hasNonLiveRunning(): boolean {
@@ -619,60 +782,28 @@ export async function syncActiveRunFromServer(): Promise<void> {
   const focused = focusedLocalId ? sessions.get(focusedLocalId) : null;
 
   if (!focused?.snap.runId) {
-    const res = await fetch("/api/runs/single?limit=5");
-    const data = (await res.json()) as {
-      ok: boolean;
-      runs?: Array<{
-        run: {
-          id: string;
-          status: string;
-          config: Record<string, unknown>;
-        };
-        job: {
-          id: string;
-          modelId: string;
-          status: string;
-          error: string | null;
-          latencyMs: number | null;
-          inputTokens: number | null;
-          outputTokens: number | null;
-          response: Record<string, unknown> | null;
-        } | null;
-      }>;
-    };
-    if (!data.ok || !data.runs?.length) return;
-
-    const running = data.runs.find(
-      (r) => r.run.status === "running" || r.job?.status === "running",
-    );
-    if (running?.job && runningCount() === 0) {
-      const modality =
-        typeof running.run.config.modality === "string"
-          ? running.run.config.modality
-          : "text";
-      const prompt =
-        typeof running.run.config.prompt === "string"
-          ? running.run.config.prompt
-          : "";
-      const params =
-        running.run.config.params &&
-        typeof running.run.config.params === "object" &&
-        !Array.isArray(running.run.config.params)
-          ? (running.run.config.params as Record<string, unknown>)
-          : null;
+    const active = await fetchActiveRuns().catch(() => [] as ActiveRunSummary[]);
+    const running = active[0];
+    if (running && runningCount() === 0) {
       hydrateFromHistory({
-        runId: running.run.id,
-        jobId: running.job.id,
-        modelId: running.job.modelId,
-        modality,
-        prompt,
+        runId: running.runId,
+        jobId: running.jobId,
+        modelId: running.modelId,
+        modality: running.modality || "text",
+        prompt: running.prompt,
         status: "running",
         error: null,
         latencyMs: null,
         inputTokens: null,
         outputTokens: null,
-        params,
+        params: running.params,
       });
+      const localId = focusedLocalId;
+      if (localId) {
+        patchSession(localId, {
+          statusMsg: formatActiveStatusMsg(running.status, running.progress),
+        });
+      }
     }
   }
 

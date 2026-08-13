@@ -25,9 +25,13 @@ import {
 } from "@/lib/client/run-history-display";
 import {
   clearIdleActiveDisplay,
+  focusRunById,
   getActiveRun,
+  getRunSnapById,
   hydrateFromHistory,
   cancelSingleRun,
+  fetchActiveRuns,
+  formatActiveStatusMsg,
   patchActiveArtifactMeta,
   reconcileSessionsFromServer,
   startActiveSingleRun,
@@ -35,6 +39,7 @@ import {
   syncActiveRunFromServer,
   MAX_CONCURRENT_SINGLE_RUNS,
   type ActiveRunSnapshot,
+  type ActiveRunSummary,
 } from "@/lib/client/run-session";
 import {
   fetchModelsCached,
@@ -334,6 +339,8 @@ export function SingleRunPage({ modality }: { modality: Modality }) {
     costUsd: number | null;
     modality: string;
     statusMsg: string | null;
+    /** 查看的是进行中任务（非已完成历史） */
+    inProgress: boolean;
     artifactMeta: Record<string, unknown> | null;
     params: Record<string, unknown> | null;
   } | null>(null);
@@ -381,10 +388,57 @@ export function SingleRunPage({ modality }: { modality: Modality }) {
     if (data.ok && data.runs) {
       setHistory(data.runs);
       setHistoryTotal(data.total ?? data.runs.length);
-      // Reuse history payload — no extra /api/runs/single?limit=30.
+      // Terminal rows from this page can settle non-live sessions.
       void reconcileSessionsFromServer(data.runs);
     }
   }, [statusFilter, modalityFilter]);
+
+  const patchHistoryFromActive = useCallback((active: ActiveRunSummary[]) => {
+    const byId = new Map(active.map((r) => [r.runId, r]));
+    setHistory((prev) => {
+      let changed = false;
+      const next = prev.map((item) => {
+        const hit = byId.get(item.run.id);
+        if (!hit || !item.job) return item;
+        const prevProgress =
+          item.job.response &&
+          item.job.response._progress &&
+          typeof item.job.response._progress === "object" &&
+          !Array.isArray(item.job.response._progress)
+            ? (item.job.response._progress as Record<string, unknown>)
+            : null;
+        const sameStatus =
+          item.job.status === hit.status && item.run.status === hit.runStatus;
+        const sameDetail =
+          String(prevProgress?.detail ?? "") ===
+            String(hit.progress?.detail ?? "") &&
+          String(prevProgress?.status ?? "") ===
+            String(hit.progress?.status ?? "");
+        if (sameStatus && sameDetail) return item;
+        changed = true;
+        return {
+          ...item,
+          run: { ...item.run, status: hit.runStatus },
+          job: {
+            ...item.job,
+            status: hit.status,
+            error: hit.error,
+            response: {
+              ...(item.job.response ?? {}),
+              _progress: hit.progress
+                ? {
+                    status: hit.progress.status,
+                    detail: hit.progress.detail,
+                    at: hit.progress.at,
+                  }
+                : null,
+            },
+          },
+        };
+      });
+      return changed ? next : prev;
+    });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -444,20 +498,104 @@ export function SingleRunPage({ modality }: { modality: Modality }) {
     void refreshHistory(historyPage);
   }, [historyPage, refreshHistory, statusFilter]);
 
-  // Only poll while history still has in-flight rows (SSE covers live local runs).
-  useEffect(() => {
-    const hasRunningHistory = history.some(
+  // Status poll via lightweight /api/runs/active — not the full history list.
+  const historyRef = useRef(history);
+  historyRef.current = history;
+  const needsActivePoll =
+    history.some(
       (item) =>
         item.job?.status === "running" ||
         item.job?.status === "queued" ||
         item.run.status === "running",
-    );
-    if (!hasRunningHistory) return;
+    ) ||
+    runningCount > 0 ||
+    Boolean(liveActive?.running);
+
+  useEffect(() => {
+    if (!needsActivePoll) return;
+
+    let cancelled = false;
+    let finishing = false;
+
+    const tick = async () => {
+      if (cancelled || finishing) return;
+      try {
+        const active = await fetchActiveRuns();
+        if (cancelled) return;
+        patchHistoryFromActive(active);
+        await reconcileSessionsFromServer(undefined, active);
+        if (cancelled) return;
+
+        const activeIds = new Set(active.map((r) => r.runId));
+        const finishedOnPage = historyRef.current.some((item) => {
+          const wasInFlight =
+            item.job?.status === "running" ||
+            item.job?.status === "queued" ||
+            item.run.status === "running";
+          return wasInFlight && !activeIds.has(item.run.id);
+        });
+        if (finishedOnPage) {
+          finishing = true;
+          await refreshHistory(historyPage);
+          finishing = false;
+        }
+      } catch {
+        /* ignore transient poll errors */
+      }
+    };
+
+    void tick();
     const timer = setInterval(() => {
-      void refreshHistory(historyPage);
+      void tick();
     }, 3000);
-    return () => clearInterval(timer);
-  }, [history, historyPage, refreshHistory]);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [
+    needsActivePoll,
+    historyPage,
+    patchHistoryFromActive,
+    refreshHistory,
+  ]);
+
+  // 查看进行中任务时，随 active 轮询刷新进度文案 / 完成后切到结果
+  useEffect(() => {
+    if (!viewedRun?.inProgress) return;
+    const item = history.find((h) => h.run.id === viewedRun.runId);
+    if (!item) return;
+    const st = item.job?.status ?? item.run.status;
+    if (st === "running" || st === "queued") {
+      const resp = item.job?.response ?? null;
+      const progress =
+        resp &&
+        resp._progress &&
+        typeof resp._progress === "object" &&
+        !Array.isArray(resp._progress)
+          ? (resp._progress as {
+              status?: string | null;
+              detail?: string | null;
+              at?: string | null;
+            })
+          : null;
+      const liveMsg = getRunSnapById(viewedRun.runId)?.statusMsg;
+      const nextMsg =
+        liveMsg ||
+        formatActiveStatusMsg(st, progress) ||
+        (st === "queued" ? "排队中…" : "进行中…");
+      if (nextMsg !== viewedRun.statusMsg) {
+        setViewedRun((prev) =>
+          prev && prev.runId === viewedRun.runId
+            ? { ...prev, statusMsg: nextMsg }
+            : prev,
+        );
+      }
+      return;
+    }
+    // 已结束：刷新为最终历史视图
+    viewHistoryItem(item);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only sync from history ticks
+  }, [history, viewedRun?.runId, viewedRun?.inProgress]);
 
   // Load artifact fileSize / dimensions whenever the displayed artifact changes.
   useEffect(() => {
@@ -710,14 +848,7 @@ export function SingleRunPage({ modality }: { modality: Modality }) {
         ? resp.content
         : "";
     const st = item.job?.status ?? item.run.status;
-    const statusMsg =
-      st === "succeeded"
-        ? "历史记录"
-        : st === "cancelled"
-          ? "已取消 · 历史"
-          : st === "failed"
-            ? "失败 · 历史"
-            : "历史记录";
+    const inProgress = st === "running" || st === "queued";
     const savedParams =
       cfg.params &&
       typeof cfg.params === "object" &&
@@ -749,6 +880,45 @@ export function SingleRunPage({ modality }: { modality: Modality }) {
       setRunParams(asStrings);
     }
 
+    // 进行中：优先切回本页对应的实时会话，输出区显示当前进度
+    if (inProgress) {
+      const focused = focusRunById(item.run.id);
+      if (focused) {
+        setViewedRun(null);
+        return;
+      }
+    }
+
+    const progress =
+      resp &&
+      resp._progress &&
+      typeof resp._progress === "object" &&
+      !Array.isArray(resp._progress)
+        ? (resp._progress as Record<string, unknown>)
+        : null;
+    const progressStatus =
+      typeof progress?.status === "string" ? progress.status : null;
+    const progressDetail =
+      progress?.detail != null ? String(progress.detail) : null;
+    const liveSnap = inProgress ? getRunSnapById(item.run.id) : null;
+
+    const statusMsg = inProgress
+      ? liveSnap?.statusMsg ||
+        (progressDetail
+          ? `${progressStatus ?? st}: ${progressDetail}`
+          : progressStatus
+            ? progressStatus
+            : st === "queued"
+              ? "排队中…"
+              : "进行中…")
+      : st === "succeeded"
+        ? "历史记录"
+        : st === "cancelled"
+          ? "已取消 · 历史"
+          : st === "failed"
+            ? "失败 · 历史"
+            : "历史记录";
+
     setViewedRun({
       runId: item.run.id,
       output: content,
@@ -762,6 +932,7 @@ export function SingleRunPage({ modality }: { modality: Modality }) {
       costUsd: null,
       modality,
       statusMsg,
+      inProgress,
       params: savedParams,
       artifactMeta:
           resp && resp._artifactMeta && typeof resp._artifactMeta === "object"
@@ -1073,8 +1244,18 @@ export function SingleRunPage({ modality }: { modality: Modality }) {
                 <div className="flex items-center gap-2">
                   <h2 className="text-sm font-semibold text-zinc-900">输出</h2>
                   {viewedRun ? (
-                    <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[11px] text-blue-700">
-                      {viewedRun.statusMsg ?? "历史记录"}
+                    <span
+                      className={`rounded px-1.5 py-0.5 text-[11px] ${
+                        viewedRun.inProgress
+                          ? "bg-amber-50 text-amber-700"
+                          : "bg-blue-50 text-blue-700"
+                      }`}
+                    >
+                      {viewedRun.inProgress
+                        ? getRunSnapById(viewedRun.runId)?.statusMsg ||
+                          viewedRun.statusMsg ||
+                          "进行中…"
+                        : (viewedRun.statusMsg ?? "历史记录")}
                     </span>
                   ) : running ? (
                     <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] text-amber-700">
@@ -1308,6 +1489,34 @@ export function SingleRunPage({ modality }: { modality: Modality }) {
                         ? cfg.prompt.slice(0, 48)
                         : "";
                     const st = item.job?.status ?? item.run.status;
+                    const progressBlob =
+                      item.job?.response &&
+                      typeof item.job.response === "object" &&
+                      item.job.response._progress &&
+                      typeof item.job.response._progress === "object" &&
+                      !Array.isArray(item.job.response._progress)
+                        ? (item.job.response._progress as Record<
+                            string,
+                            unknown
+                          >)
+                        : null;
+                    const progressDetail =
+                      progressBlob?.detail != null
+                        ? String(progressBlob.detail)
+                        : "";
+                    const progressPct = progressDetail.match(/(\d+)\s*%/);
+                    const statusLabel =
+                      st === "succeeded"
+                        ? "成功"
+                        : st === "failed"
+                          ? "失败"
+                          : st === "running"
+                            ? progressPct
+                              ? `进行中 ${progressPct[1]}%`
+                              : "进行中"
+                            : st === "cancelled"
+                              ? "已取消"
+                              : st;
                     return (
                       <tr
                         key={item.run.id}
@@ -1343,15 +1552,7 @@ export function SingleRunPage({ modality }: { modality: Modality }) {
                                     : "text-zinc-600"
                             }
                           >
-                            {st === "succeeded"
-                              ? "成功"
-                              : st === "failed"
-                                ? "失败"
-                                : st === "running"
-                                  ? "进行中"
-                                  : st === "cancelled"
-                                    ? "已取消"
-                                    : st}
+                            {statusLabel}
                           </span>
                         </td>
                         <td className="whitespace-nowrap px-3 py-1.5 font-mono text-[11px]">
