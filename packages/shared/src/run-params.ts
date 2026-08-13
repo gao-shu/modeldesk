@@ -25,7 +25,9 @@ export type RunParamFieldType =
    * Video reference input with modes: none / single ref / first+last frame.
    * Primary value uses `key`; optional end frame uses `endKey`.
    */
-  | "image_pair";
+  | "image_pair"
+  /** Local audio upload → data URI, or paste URL / data URI (e.g. MiMo voiceclone). */
+  | "audio";
 
 export type RunParamOption = {
   value: string;

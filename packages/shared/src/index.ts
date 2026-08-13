@@ -172,7 +172,7 @@ export const EXTENDED_PROVIDER_PRESETS = [
     id: "minimax-music",
     label: "MiniMax 音乐",
     baseUrl: "https://api.minimaxi.com/v1",
-    defaultModelId: "music-3.0",
+    defaultModelId: "music-3.0-free",
     modalities: ["music"] as const,
   },
   {
@@ -180,6 +180,13 @@ export const EXTENDED_PROVIDER_PRESETS = [
     label: "MiniMax TTS",
     baseUrl: "https://api.minimaxi.com/v1",
     defaultModelId: "speech-2.8-hd",
+    modalities: ["audio"] as const,
+  },
+  {
+    id: "xiaomi-mimo-tts",
+    label: "小米 MiMo TTS（限时免费）",
+    baseUrl: "https://api.xiaomimimo.com/v1",
+    defaultModelId: "mimo-v2.5-tts",
     modalities: ["audio"] as const,
   },
   {

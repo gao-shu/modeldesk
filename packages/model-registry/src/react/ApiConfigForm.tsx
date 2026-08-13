@@ -236,6 +236,9 @@ export function suggestedConfigName(
   if (id.startsWith("speech-") || id.startsWith("music-")) {
     return raw ? `MiniMax · ${raw}` : "MiniMax";
   }
+  if (id.startsWith("mimo-") && id.includes("tts")) {
+    return raw ? `小米 MiMo · ${raw}` : "小米 MiMo TTS";
+  }
   if (id.startsWith("qwen") && (id.includes("tts") || id.includes("audio"))) {
     return raw ? `千问 TTS · ${raw}` : "千问 TTS";
   }

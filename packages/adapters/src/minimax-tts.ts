@@ -169,7 +169,7 @@ export async function synthesizeMinimaxSpeech(
   };
 }
 
-/** MiniMax lyrics generation (for music-3.0 vocal songs). */
+/** MiniMax lyrics generation (for music vocal songs). */
 export async function generateMinimaxLyrics(input: {
   baseUrl: string;
   apiKey: string;

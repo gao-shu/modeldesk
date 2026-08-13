@@ -82,7 +82,7 @@ export async function generateMinimaxMusic(
     baseUrl = "https://api.minimaxi.com/v1";
   }
 
-  const model = options.model || "music-3.0";
+  const model = options.model || "music-3.0-free";
   const outputFormat = options.outputFormat ?? "hex";
   const fmt = options.format ?? "mp3";
   const isInstrumental = options.isInstrumental ?? false;

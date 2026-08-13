@@ -169,6 +169,14 @@ function resolveProviderHint(
     .toLowerCase();
   if (!bits) return provider ?? "";
   if (bits.includes("minimax")) return `${provider ?? ""} minimax`;
+  if (
+    bits.includes("xiaomimimo") ||
+    bits.includes("mimo-v2.5-tts") ||
+    bits.includes("小米") ||
+    (bits.includes("mimo") && bits.includes("tts"))
+  ) {
+    return `${provider ?? ""} xiaomi-mimo mimo`;
+  }
   if (bits.includes("qwen3-tts") || bits.includes("qwen3_tts")) {
     return `${provider ?? ""} qwen3-tts`;
   }
@@ -484,6 +492,159 @@ async function resolveLocalAudio(file: File): Promise<string> {
     throw new Error(data.error ?? "音频上传失败");
   }
   return data.url;
+}
+
+/** Soft cap for MiMo voiceclone reference audio (official ≤10MB). */
+const MAX_REF_AUDIO_BYTES = 10 * 1024 * 1024;
+
+async function resolveLocalAudioAsDataUrl(file: File): Promise<string> {
+  const okType =
+    /^audio\/(mpeg|mp3|wav|x-wav)$/i.test(file.type) ||
+    /\.(mp3|wav)$/i.test(file.name);
+  if (!okType) {
+    throw new Error("请选择 MP3 或 WAV 音频");
+  }
+  if (file.size > MAX_REF_AUDIO_BYTES) {
+    throw new Error("参考音频不能超过 10MB");
+  }
+  return readFileAsDataUrl(file);
+}
+
+function describeUploadedAudio(value: string): string {
+  if (value.startsWith("data:")) {
+    const m = /^data:(audio\/[\w+.-]+);base64,/i.exec(value);
+    const kind = (m?.[1] ?? "audio").replace(/^audio\//i, "").toUpperCase();
+    const approxKb = Math.max(1, Math.round((value.length * 0.75) / 1024));
+    return `${kind} · 约 ${approxKb} KB · 已上传`;
+  }
+  if (/^https?:\/\//i.test(value)) {
+    try {
+      return `公网 URL · ${new URL(value).hostname}`;
+    } catch {
+      return "公网 URL · 已填写";
+    }
+  }
+  return "已填写";
+}
+
+/**
+ * Single reference audio → data URI (MiMo voiceclone) or paste URL.
+ * Does not require object storage.
+ */
+function AudioParamControl({
+  value,
+  disabled,
+  hint,
+  onChange,
+  inputClass,
+  compact,
+}: {
+  value: string;
+  disabled?: boolean;
+  hint?: string;
+  onChange: (value: string) => void;
+  inputClass: string;
+  compact?: boolean;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [urlDraft, setUrlDraft] = useState("");
+  const hasValue = Boolean(value.trim());
+  const busy = Boolean(disabled) || uploading;
+
+  const clear = () => onChange("");
+
+  const addFiles = async (files: File[]) => {
+    const file = files[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      onChange(await resolveLocalAudioAsDataUrl(file));
+      setUrlDraft("");
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "上传音频失败");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const commitUrl = (raw: string) => {
+    const next = raw.trim();
+    if (!next) return;
+    if (
+      !/^https?:\/\//i.test(next) &&
+      !/^data:audio\//i.test(next)
+    ) {
+      window.alert("请填写 http(s) 公网 URL 或 data:audio/...;base64,...");
+      return;
+    }
+    onChange(next);
+    setUrlDraft("");
+  };
+
+  return (
+    <div className={compact ? "space-y-1.5" : "space-y-2"}>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,.mp3,.wav"
+        disabled={busy}
+        className="hidden"
+        onChange={(e) => {
+          const files = e.target.files ? Array.from(e.target.files) : [];
+          e.target.value = "";
+          void addFiles(files);
+        }}
+      />
+      {hasValue ? (
+        <div className="flex items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50/60 px-2 py-1.5">
+          <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-zinc-700">
+            {describeUploadedAudio(value)}
+          </span>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={clear}
+            className="shrink-0 rounded border border-zinc-300 bg-white px-2 py-0.5 text-[11px] text-zinc-600 hover:bg-zinc-50 disabled:opacity-50"
+          >
+            清除
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => fileRef.current?.click()}
+            className="rounded border border-zinc-300 bg-white px-2 py-1 text-[11px] text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+          >
+            {uploading ? "读取中…" : "上传 mp3/wav"}
+          </button>
+          <input
+            type="text"
+            value={urlDraft}
+            disabled={busy}
+            placeholder="或粘贴公网 URL / data URI"
+            title={hint}
+            onChange={(e) => setUrlDraft(e.target.value)}
+            onBlur={() => commitUrl(urlDraft)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commitUrl(urlDraft);
+              }
+            }}
+            className={`${inputClass} min-w-[12rem] flex-1`}
+          />
+        </div>
+      )}
+      {hint ? (
+        <p className={`text-zinc-400 ${compact ? "text-[10px]" : "text-[11px]"}`}>
+          {hint}
+        </p>
+      ) : null}
+    </div>
+  );
 }
 
 /**
@@ -1338,7 +1499,8 @@ export function RunParamsFields({
             field.type === "range" ||
             field.type === "image" ||
             field.type === "image_list" ||
-            field.type === "image_pair";
+            field.type === "image_pair" ||
+            field.type === "audio";
           const showStorageTip =
             (field.type === "image" ||
               field.type === "image_list" ||
@@ -1448,6 +1610,15 @@ export function RunParamsFields({
               />
             ) : field.type === "image" ? (
               <ImageParamControl
+                value={value}
+                disabled={fieldDisabled}
+                hint={fieldHint}
+                onChange={(next) => onChange(field.key, next)}
+                inputClass={inputClass}
+                compact={compact}
+              />
+            ) : field.type === "audio" ? (
+              <AudioParamControl
                 value={value}
                 disabled={fieldDisabled}
                 hint={fieldHint}

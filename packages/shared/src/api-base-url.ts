@@ -113,6 +113,7 @@ function apiActionPathForFormat(apiFormatId: string): string | null {
     return "/videos";
   }
   if (apiFormatId === "audio.minimax") return "/t2a_v2";
+  if (apiFormatId === "audio.xiaomi-mimo") return "/chat/completions";
   if (apiFormatId === "music.minimax") return "/music_generation";
   return null;
 }
@@ -133,6 +134,7 @@ function stripKnownActionSuffix(url: string, actionPath: string | null): string 
     .replace(/\/contents\/generations\/tasks$/i, "")
     .replace(/\/t2a_v2$/i, "")
     .replace(/\/music_generation$/i, "")
+    .replace(/\/chat\/completions$/i, "")
     .replace(/\/+$/, "");
   return u;
 }

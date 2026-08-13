@@ -89,6 +89,13 @@ export {
 } from "./minimax-tts";
 
 export {
+  synthesizeXiaomiMimoSpeech,
+  isXiaomiMimoTtsBaseUrl,
+  type MimoTtsOptions,
+  type MimoTtsResult,
+} from "./mimo-tts";
+
+export {
   parseUsageFromUnknown,
   extractUsageFromResponse,
   estimatePromptTokens,

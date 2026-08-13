@@ -485,6 +485,52 @@ const AUDIO_OPENAI_FIELDS: readonly RunParamField[] = [
   AUDIO_SPEED,
 ];
 
+/** Xiaomi MiMo V2.5 TTS（限时免费）：预置音色 / 音色克隆 / 音色设计. */
+const AUDIO_XIAOMI_MIMO_FIELDS: readonly RunParamField[] = [
+  {
+    key: "voice",
+    label: "预置音色",
+    type: "select",
+    defaultValue: "mimo_default",
+    excludeModels: ["voiceclone", "voicedesign"],
+    hint: "仅 mimo-v2.5-tts；国内默认偏「冰糖」，海外偏 Mia",
+    options: [
+      { value: "mimo_default", label: "MiMo 默认" },
+      { value: "冰糖", label: "女 · 冰糖（中）" },
+      { value: "茉莉", label: "女 · 茉莉（中）" },
+      { value: "苏打", label: "男 · 苏打（中）" },
+      { value: "白桦", label: "男 · 白桦（中）" },
+      { value: "Mia", label: "女 · Mia（英）" },
+      { value: "Chloe", label: "女 · Chloe（英）" },
+      { value: "Milo", label: "男 · Milo（英）" },
+      { value: "Dean", label: "男 · Dean（英）" },
+    ],
+  },
+  {
+    key: "reference_audio",
+    label: "参考音频",
+    type: "audio",
+    defaultValue: "",
+    models: ["voiceclone"],
+    hint: "音色克隆：数秒 mp3/wav（≤10MB），本地上传为 data URI，也可粘贴公网 URL",
+  },
+  {
+    key: "instruction",
+    label: "风格 / 音色描述",
+    type: "textarea",
+    defaultValue: "",
+    hint: "可选风格指令（user）。音色设计模型必填：一句话描述年龄/口音/气质等",
+  },
+  {
+    key: "optimize_text_preview",
+    label: "优化文本预览",
+    type: "boolean",
+    defaultValue: "true",
+    models: ["voicedesign"],
+    hint: "voicedesign 官方示例默认开启",
+  },
+];
+
 const MUSIC_COMMON_FIELDS: readonly RunParamField[] = [
   {
     key: "is_instrumental",
@@ -1642,6 +1688,23 @@ export const API_FORMATS: readonly ApiFormatDef[] = [
     fields: AUDIO_MINIMAX_FIELDS,
   },
   {
+    id: "audio.xiaomi-mimo",
+    label: "小米 MiMo TTS",
+    hint: "限时免费 · api.xiaomimimo.com · chat/completions",
+    modality: "audio",
+    tier: "core",
+    suggestedBaseUrl: "https://api.xiaomimimo.com/v1",
+    apiRootPath: "/v1",
+    apiActionPath: "/chat/completions",
+    suggestedModelId: "mimo-v2.5-tts",
+    modelOptions: [
+      "mimo-v2.5-tts",
+      "mimo-v2.5-tts-voiceclone",
+      "mimo-v2.5-tts-voicedesign",
+    ],
+    fields: AUDIO_XIAOMI_MIMO_FIELDS,
+  },
+  {
     id: "audio.qwen",
     label: "千问 TTS",
     hint: "DashScope · 语音合成",
@@ -1677,8 +1740,8 @@ export const API_FORMATS: readonly ApiFormatDef[] = [
     suggestedBaseUrl: "https://api.minimaxi.com/v1",
     apiRootPath: "/v1",
     apiActionPath: "/music_generation",
-    suggestedModelId: "music-3.0",
-    modelOptions: ["music-3.0", "music-2.5"],
+    suggestedModelId: "music-3.0-free",
+    modelOptions: ["music-3.0-free", "music-2.6-free"],
     fields: MUSIC_COMMON_FIELDS,
   },
   {
@@ -1924,6 +1987,15 @@ export function resolveApiFormatId(input: {
   if (input.modality === "audio") {
     if (bits.includes("minimax") || bits.includes("hailuo")) {
       return "audio.minimax";
+    }
+    if (
+      bits.includes("xiaomimimo") ||
+      bits.includes("mimo.mi.com") ||
+      bits.includes("mimo-v2.5-tts") ||
+      bits.includes("小米") ||
+      (bits.includes("mimo") && bits.includes("tts"))
+    ) {
+      return "audio.xiaomi-mimo";
     }
     if (
       bits.includes("qwen") ||

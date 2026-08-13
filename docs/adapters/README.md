@@ -80,6 +80,7 @@ ModelDesk 用 **`api_format`** 描述「怎么调厂商接口」。本目录是�
 | format | 档案 | Tier | 适配度 | 上次校验 |
 |--------|------|------|--------|----------|
 | `audio.minimax` | [audio-minimax.md](./audio-minimax.md) | core | 待校验 | 2026-08-10 |
+| `audio.xiaomi-mimo` | [audio-xiaomi-mimo.md](./audio-xiaomi-mimo.md) | core | 部分对齐 | 2026-08-13 |
 | `audio.qwen` | [audio-qwen.md](./audio-qwen.md) | core | 待校验 | 2026-08-10 |
 | `audio.openai-compatible` | [audio-openai-compatible.md](./audio-openai-compatible.md) | core | 待校验 | 2026-08-10 |
 | `music.minimax` | [music-minimax.md](./music-minimax.md) | core | 待校验 | 2026-08-10 |

@@ -5,11 +5,13 @@ import {
   isMinimaxApiBaseUrl,
   isMinimaxMusicBaseUrl,
   isQwenTtsBaseUrl,
+  isXiaomiMimoTtsBaseUrl,
   resolveTokenCounts,
   streamChatCompletion,
   synthesizeMinimaxSpeech,
   synthesizeQwenSpeech,
   synthesizeSpeech,
+  synthesizeXiaomiMimoSpeech,
   type StreamChatChunk,
 } from "@modeldesk/adapters";
 
@@ -666,6 +668,11 @@ async function runAudioJob(
     typeof params.lyrics === "string" && params.lyrics.trim()
       ? params.lyrics.trim()
       : undefined;
+  const referenceAudio =
+    typeof params.reference_audio === "string" && params.reference_audio.trim()
+      ? params.reference_audio.trim()
+      : undefined;
+  const optimizeTextPreview = params.optimize_text_preview !== false;
 
   input.onEvent?.(
     "status",
@@ -701,7 +708,20 @@ async function runAudioJob(
               durationSec,
               signal: combineSignal(input.signal, 180_000),
             })
-        : isQwenTtsBaseUrl(baseUrl)
+        : apiFormat === "audio.xiaomi-mimo" || isXiaomiMimoTtsBaseUrl(baseUrl)
+          ? await synthesizeXiaomiMimoSpeech({
+              baseUrl: baseUrl || "https://api.xiaomimimo.com/v1",
+              apiKey: input.apiKey || "mock",
+              model: input.row.model_id,
+              text: input.prompt,
+              instruction,
+              voice,
+              referenceAudio,
+              optimizeTextPreview,
+              timeoutMs: 120_000,
+              signal: combineSignal(input.signal, 120_000),
+            })
+          : isQwenTtsBaseUrl(baseUrl)
           ? await synthesizeQwenSpeech({
               baseUrl: baseUrl || "https://dashscope.aliyuncs.com",
               apiKey: input.apiKey || "mock",

@@ -9,7 +9,7 @@
 | Tier | `core` |
 | 建议 Base URL | `https://api.minimaxi.com/v1` |
 | Action | `/music_generation` |
-| 典型 Model ID | `music-3.0`, `music-2.5` |
+| 典型 Model ID | `music-3.0-free`, `music-2.6-free` |
 | 代码入口 | `api-formats.ts` · `packages/adapters/src/minimax-music.ts` |
 | 适配度 | 待校验 |
 | 上次校验 | 2026-08-10（档案初建） |
