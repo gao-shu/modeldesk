@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/) when tagg
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-13
+
 ### Removed
 
 - **Radar（API 雷达）**：删除 `apps/radar-api`、`packages/radar-types` 及 Docker / 桌面 sidecar / Web 代理接线；`pnpm dev` 仅启动 Web
@@ -24,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/) when tagg
 - **通义万相** `image.dashscope-wanxiang`：DashScope 文生图适配（非 OpenAI 兼容；wan2.6+ 同步/异步，更早型号异步 text2image）
 - Gallery: full timestamps, `object-contain` image previews, video first-frame preview
 - Video multi-ref：Seedance「多参考」→ `role=reference_image`（最多 9）；Grok R2V → `reference_images`（最多 7，仅 1.5；与 I2V 互斥）
+- MiniMax Hailuo H3：高级 Base/查询 URL、多参参考、进度文案；中转站结果 URL 兼容 `metadata.url`
+- Run status APIs：`GET /api/runs/active`、`GET /api/runs/:id`；历史列表与状态轮询解耦
+- Settings 对象存储表单：各云厂商假数据占位示例（不含真实密钥）
 - Docs: [docs/gateway-business.md](./docs/gateway-business.md) — 本机业务经 Gateway + 别名对接
 
 ### Changed
@@ -31,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/) when tagg
 - `/api/runs/single` delegates to run-core (`onPrepared` for SSE meta + abort registry)
 - OpenAI-compatible image path: prefer `POST /images/edits` when reference images are present
 - Model config and gallery cards share a denser grid footprint
+- In-flight run progress no longer re-fetches the full history page every few seconds
 
 ### Fixed
 
