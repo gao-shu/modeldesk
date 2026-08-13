@@ -4,6 +4,9 @@ import { VIDEO_WAIT_TIMEOUT_MS } from "@modeldesk/shared";
 /** Soft cap on concurrent single-model runs from this browser tab. */
 export const MAX_CONCURRENT_SINGLE_RUNS = 3;
 
+/** How often to poll `/api/runs/active` while something is in flight. */
+export const ACTIVE_POLL_INTERVAL_MS = 5_000;
+
 export type ActiveRunSnapshot = {
   runId: string | null;
   jobId: string | null;
@@ -806,7 +809,7 @@ export function ensureBackgroundActivePoll(): void {
       }
       if (runningCount() === 0) stopBackgroundActivePoll();
     })();
-  }, 3000);
+  }, ACTIVE_POLL_INTERVAL_MS);
 }
 
 /** Recover after refresh: hydrate in-flight DB jobs; poll only disconnected sessions. */
@@ -847,7 +850,7 @@ export async function syncActiveRunFromServer(): Promise<void> {
 
   const deadline = Date.now() + VIDEO_WAIT_TIMEOUT_MS;
   while (hasNonLiveRunning() && Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, 3000));
+    await new Promise((r) => setTimeout(r, ACTIVE_POLL_INTERVAL_MS));
     await reconcileSessionsFromServer();
   }
 }

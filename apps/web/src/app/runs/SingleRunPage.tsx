@@ -38,6 +38,7 @@ import {
   subscribeActiveRun,
   syncActiveRunFromServer,
   MAX_CONCURRENT_SINGLE_RUNS,
+  ACTIVE_POLL_INTERVAL_MS,
   type ActiveRunSnapshot,
   type ActiveRunSummary,
 } from "@/lib/client/run-session";
@@ -547,7 +548,7 @@ export function SingleRunPage({ modality }: { modality: Modality }) {
     void tick();
     const timer = setInterval(() => {
       void tick();
-    }, 3000);
+    }, ACTIVE_POLL_INTERVAL_MS);
     return () => {
       cancelled = true;
       clearInterval(timer);
