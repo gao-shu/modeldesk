@@ -11,6 +11,7 @@ import {
   resolveApiFormatId,
   resolveRunParamsForFormat,
   videoSettingsFromParams,
+  VIDEO_WAIT_TIMEOUT_MS,
 } from "@modeldesk/shared";
 import { createSqliteModelStore } from "./model-registry-store";
 import { getModel, toPublicModel } from "./models";
@@ -202,7 +203,7 @@ async function adapterGenerateVideo(input: VideoGenerateAdapterInput) {
       : undefined;
 
   const baseUrl = resolved.baseUrl ?? "mock://video";
-  const timeoutMs = input.timeoutMs ?? 600_000; // 视频默认 10 分钟
+  const timeoutMs = input.timeoutMs ?? VIDEO_WAIT_TIMEOUT_MS; // 视频默认 30 分钟
 
   const result = await generateVideo({
     baseUrl,

@@ -1,4 +1,5 @@
 import { parseSseChunk } from "./sse";
+import { VIDEO_WAIT_TIMEOUT_MS } from "@modeldesk/shared";
 
 /** Soft cap on concurrent single-model runs from this browser tab. */
 export const MAX_CONCURRENT_SINGLE_RUNS = 3;
@@ -245,6 +246,7 @@ export function hydrateFromHistory(input: {
   sessions.set(localId, session);
   focusedLocalId = localId;
   emit();
+  if (input.status === "running") ensureBackgroundActivePoll();
 }
 
 export async function startActiveSingleRun(input: {
@@ -283,6 +285,7 @@ export async function startActiveSingleRun(input: {
   sessions.set(localId, session);
   focusedLocalId = localId;
   emit();
+  ensureBackgroundActivePoll();
 
   const patch = (
     p: Partial<Omit<ActiveRunSnapshot, "runningCount" | "updatedAt">>,
@@ -775,6 +778,37 @@ function hasNonLiveRunning(): boolean {
   return false;
 }
 
+/** Module-level active poll — keeps reconciling after leaving the run page. */
+let backgroundActivePollTimer: ReturnType<typeof setInterval> | null = null;
+
+function stopBackgroundActivePoll() {
+  if (!backgroundActivePollTimer) return;
+  clearInterval(backgroundActivePollTimer);
+  backgroundActivePollTimer = null;
+}
+
+/** Poll `/api/runs/active` while any local session is still running (tab-wide). */
+export function ensureBackgroundActivePoll(): void {
+  if (backgroundActivePollTimer) return;
+  if (runningCount() === 0) return;
+
+  backgroundActivePollTimer = setInterval(() => {
+    void (async () => {
+      if (runningCount() === 0) {
+        stopBackgroundActivePoll();
+        return;
+      }
+      try {
+        const active = await fetchActiveRuns();
+        await reconcileSessionsFromServer(undefined, active);
+      } catch {
+        /* ignore transient poll errors */
+      }
+      if (runningCount() === 0) stopBackgroundActivePoll();
+    })();
+  }, 3000);
+}
+
 /** Recover after refresh: hydrate in-flight DB jobs; poll only disconnected sessions. */
 export async function syncActiveRunFromServer(): Promise<void> {
   await reconcileSessionsFromServer();
@@ -807,12 +841,13 @@ export async function syncActiveRunFromServer(): Promise<void> {
     }
   }
 
+  // Keep reconciling for up to the video wait budget even after leaving this page.
+  ensureBackgroundActivePoll();
   if (!hasNonLiveRunning()) return;
 
-  let n = 0;
-  while (hasNonLiveRunning() && n < 90) {
+  const deadline = Date.now() + VIDEO_WAIT_TIMEOUT_MS;
+  while (hasNonLiveRunning() && Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, 3000));
     await reconcileSessionsFromServer();
-    n += 1;
   }
 }

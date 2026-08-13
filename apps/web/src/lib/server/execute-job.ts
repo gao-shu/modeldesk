@@ -117,6 +117,7 @@ import {
   resolveRunParamsForFormat,
   videoSettingsFromParams,
   resolveApiFormatId,
+  VIDEO_WAIT_TIMEOUT_MS,
   resolveApiBaseUrl,
 } from "@modeldesk/shared";
 import { saveArtifact } from "./artifacts";
@@ -834,7 +835,7 @@ async function runVideoJob(input: JobExecParams): Promise<JobExecResult> {
       prompt: input.prompt,
       params: input.params ?? {},
       signal: input.signal ?? undefined,
-      timeoutMs: 600_000, // 视频：10 分钟
+      timeoutMs: VIDEO_WAIT_TIMEOUT_MS, // 视频：30 分钟
       onHttpLog: (log) => {
         httpLog = log;
         mergeJobResponse(input.jobId, { _httpLog: log });

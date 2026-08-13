@@ -7,6 +7,7 @@ import {
   canonicalizeWanModelId,
   resolveApiActionUrl,
   resolveApiBaseUrl,
+  VIDEO_WAIT_TIMEOUT_MS,
 } from "@modeldesk/shared";
 import { downloadBytes } from "./images";
 import {
@@ -622,7 +623,7 @@ export async function generateVideo(
   options: VideoGenOptions,
 ): Promise<VideoGenResult> {
   const started = Date.now();
-  const timeoutMs = options.timeoutMs ?? 600_000; // 视频默认 10 分钟
+  const timeoutMs = options.timeoutMs ?? VIDEO_WAIT_TIMEOUT_MS; // 视频默认 30 分钟
   const signal =
     options.signal ??
     (typeof AbortSignal !== "undefined" && "timeout" in AbortSignal

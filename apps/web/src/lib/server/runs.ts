@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { VIDEO_ORPHAN_MAX_AGE_MS } from "@modeldesk/shared";
 import { getDb, nowIso } from "./db";
 import { parseJsonObject } from "./json";
 import { hasRunAbort } from "./run-abort";
@@ -331,7 +332,7 @@ function ensureOrphansCleaned(): void {
  * Prevents history from sticking on「进行中」after disconnect / hang.
  */
 export function sweepStaleInFlightRuns(options?: {
-  /** Fail jobs older than this (default 25 min; video wait is 10 min + buffer). */
+  /** Fail jobs older than this (default 40 min; video wait is 30 min + buffer). */
   maxAgeMs?: number;
   /**
    * Cancel jobs with no abort controller / heartbeat after this grace
@@ -339,7 +340,7 @@ export function sweepStaleInFlightRuns(options?: {
    */
   orphanGraceMs?: number;
 }): { swept: number } {
-  const maxAgeMs = options?.maxAgeMs ?? 25 * 60 * 1000;
+  const maxAgeMs = options?.maxAgeMs ?? VIDEO_ORPHAN_MAX_AGE_MS;
   const orphanGraceMs = options?.orphanGraceMs ?? 3 * 60_000;
   const now = Date.now();
   const db = getDb();

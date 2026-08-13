@@ -7,6 +7,7 @@ import {
   inferApiBaseUrlMode,
   resolveApiActionUrl,
   resolveApiBaseUrl,
+  VIDEO_WAIT_TIMEOUT_MS,
 } from "@modeldesk/shared";
 import { createHmac } from "node:crypto";
 import { downloadBytes } from "./images";
@@ -111,7 +112,7 @@ export async function generateKlingVideo(
   options: VideoGenOptions,
 ): Promise<VideoGenResult> {
   const started = Date.now();
-  const timeoutMs = options.timeoutMs ?? 600_000;
+  const timeoutMs = options.timeoutMs ?? VIDEO_WAIT_TIMEOUT_MS;
   const signal =
     options.signal ??
     (typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
@@ -382,7 +383,7 @@ export async function generateMinimaxHailuoVideo(
   options: VideoGenOptions,
 ): Promise<VideoGenResult> {
   const started = Date.now();
-  const timeoutMs = options.timeoutMs ?? 600_000;
+  const timeoutMs = options.timeoutMs ?? VIDEO_WAIT_TIMEOUT_MS;
   const signal =
     options.signal ??
     (typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
@@ -755,7 +756,7 @@ export async function generateViduVideo(
   options: VideoGenOptions,
 ): Promise<VideoGenResult> {
   const started = Date.now();
-  const timeoutMs = options.timeoutMs ?? 600_000;
+  const timeoutMs = options.timeoutMs ?? VIDEO_WAIT_TIMEOUT_MS;
   const signal =
     options.signal ??
     (typeof AbortSignal !== "undefined" && "timeout" in AbortSignal

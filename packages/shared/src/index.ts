@@ -332,6 +332,11 @@ export {
 
 export { defaultMinimaxPollUrlTemplate, defaultPollUrlTemplate, formatSupportsPollUrl } from "./minimax-poll-url";
 
+export {
+  VIDEO_ORPHAN_MAX_AGE_MS,
+  VIDEO_WAIT_TIMEOUT_MS,
+} from "./timeouts";
+
 export type {
   NavItem,
   NavSection,
