@@ -1,0 +1,265 @@
+import {
+  runAudio,
+  runCoreResultToPublic,
+  runImage,
+  runMusic,
+  runVideo,
+  type RunCoreAgentModality,
+  type RunCoreOutcome,
+} from "@/lib/server/run-core";
+import { jsonResponse, openaiErrorResponse, readJsonBody } from "./http";
+import { resolveModelRef } from "./resolve-model";
+
+function log(...args: unknown[]) {
+  console.error("[modeldesk-gateway]", ...args);
+}
+
+function artifactUrl(origin: string, artifactId: string): string {
+  return `${origin.replace(/\/+$/, "")}/v1/artifacts/${artifactId}`;
+}
+
+function paramsFromBody(body: Record<string, unknown>): Record<string, unknown> {
+  const params =
+    body.params && typeof body.params === "object" && !Array.isArray(body.params)
+      ? { ...(body.params as Record<string, unknown>) }
+      : {};
+  for (const key of [
+    "size",
+    "quality",
+    "style",
+    "n",
+    "response_format",
+    "voice",
+    "speed",
+    "format",
+    "duration",
+    "aspect_ratio",
+    "resolution",
+  ] as const) {
+    if (body[key] !== undefined && params[key] === undefined) {
+      params[key] = body[key];
+    }
+  }
+  return params;
+}
+
+function promptFromBody(body: Record<string, unknown>): string {
+  if (typeof body.prompt === "string") return body.prompt;
+  if (typeof body.input === "string") return body.input;
+  return "";
+}
+
+async function runModality(
+  modality: RunCoreAgentModality,
+  input: {
+    modelId: string;
+    prompt: string;
+    params: Record<string, unknown>;
+  },
+): Promise<RunCoreOutcome> {
+  const base = {
+    modelId: input.modelId,
+    prompt: input.prompt,
+    params: input.params,
+  };
+  switch (modality) {
+    case "image":
+      return runImage(base);
+    case "video":
+      return runVideo(base);
+    case "audio":
+      return runAudio(base);
+    case "music":
+      return runMusic(base);
+    default:
+      return {
+        kind: "prepare_error",
+        error: `Unsupported modality ${modality}`,
+        code: "modality_mismatch",
+      };
+  }
+}
+
+function modeldeskMeta(
+  pub: ReturnType<typeof runCoreResultToPublic>,
+  origin: string,
+) {
+  const artifacts =
+    pub.artifacts?.map((a) => ({
+      id: a.id,
+      type: a.type,
+      mime: a.mime,
+      path: a.path,
+      url: artifactUrl(origin, a.id),
+    })) ?? null;
+  return {
+    runId: pub.runId,
+    jobId: pub.jobId,
+    latencyMs: pub.latencyMs,
+    artifactId: pub.artifactId,
+    artifact: artifacts?.[0] ?? null,
+    artifacts,
+  };
+}
+
+export async function mediaGenerateResponse(
+  req: Request,
+  opts: {
+    modality: Exclude<RunCoreAgentModality, "text">;
+    origin: string;
+    openaiImages?: boolean;
+  },
+): Promise<Response> {
+  const parsed = await readJsonBody(req);
+  if (!parsed.ok) return openaiErrorResponse(400, "Invalid JSON body");
+  const body = parsed.body;
+
+  const modelRef = typeof body.model === "string" ? body.model.trim() : "";
+  if (!modelRef) return openaiErrorResponse(400, "Missing model");
+
+  const resolved = resolveModelRef(modelRef, opts.modality);
+  if (!resolved) {
+    return openaiErrorResponse(
+      404,
+      `Unknown ${opts.modality} model "${modelRef}". Use GET /v1/models or configure a stable alias.`,
+    );
+  }
+
+  const prompt = promptFromBody(body).trim();
+  if (!prompt) {
+    return openaiErrorResponse(400, "prompt (or input) is required");
+  }
+
+  const params = paramsFromBody(body);
+  const outcome = await runModality(opts.modality, {
+    modelId: resolved.id,
+    prompt,
+    params,
+  });
+
+  if (outcome.kind === "prepare_error") {
+    return openaiErrorResponse(400, outcome.error);
+  }
+
+  const pub = runCoreResultToPublic(outcome);
+  if (!pub.ok) {
+    return openaiErrorResponse(502, pub.error ?? "Upstream run failed");
+  }
+
+  const created = Math.floor(Date.now() / 1000);
+  const meta = modeldeskMeta(pub, opts.origin);
+
+  log(`${opts.modality}.generate`, {
+    model: resolved.id,
+    ok: true,
+    latencyMs: pub.latencyMs,
+  });
+
+  if (opts.openaiImages) {
+    return jsonResponse(200, {
+      created,
+      data: (pub.artifacts ?? []).map((a) => ({
+        url: artifactUrl(opts.origin, a.id),
+        b64_json: null,
+      })),
+      model: resolved.id,
+      modeldesk: meta,
+    });
+  }
+
+  return jsonResponse(200, {
+    created,
+    model: resolved.id,
+    modality: opts.modality,
+    prompt,
+    content: pub.content,
+    data: (pub.artifacts ?? []).map((a) => ({
+      url: artifactUrl(opts.origin, a.id),
+      path: a.path,
+      mime: a.mime,
+      id: a.id,
+    })),
+    modeldesk: meta,
+  });
+}
+
+export async function modeldeskRunResponse(
+  req: Request,
+  opts: { origin: string },
+): Promise<Response> {
+  const parsed = await readJsonBody(req);
+  if (!parsed.ok) return openaiErrorResponse(400, "Invalid JSON body");
+  const body = parsed.body;
+
+  const modelRef = typeof body.model === "string" ? body.model.trim() : "";
+  if (!modelRef) return openaiErrorResponse(400, "Missing model");
+
+  const modalityHint =
+    typeof body.modality === "string" ? body.modality.trim() : "";
+  const expect =
+    modalityHint === "image" ||
+    modalityHint === "video" ||
+    modalityHint === "audio" ||
+    modalityHint === "music"
+      ? modalityHint
+      : null;
+
+  const resolved = resolveModelRef(modelRef, expect);
+  if (!resolved) {
+    return openaiErrorResponse(
+      404,
+      `Unknown model "${modelRef}". Use GET /v1/models or a stable alias.`,
+    );
+  }
+
+  if (resolved.modality === "text") {
+    return openaiErrorResponse(
+      400,
+      "Text models use POST /v1/chat/completions",
+    );
+  }
+
+  const prompt = promptFromBody(body).trim();
+  if (!prompt) {
+    return openaiErrorResponse(400, "prompt (or input) is required");
+  }
+
+  const params = paramsFromBody(body);
+  const modality = resolved.modality as Exclude<RunCoreAgentModality, "text">;
+  const outcome = await runModality(modality, {
+    modelId: resolved.id,
+    prompt,
+    params,
+  });
+
+  if (outcome.kind === "prepare_error") {
+    return openaiErrorResponse(400, outcome.error);
+  }
+
+  const pub = runCoreResultToPublic(outcome);
+  if (!pub.ok) {
+    return openaiErrorResponse(502, pub.error ?? "Upstream run failed");
+  }
+
+  log("modeldesk.run", {
+    model: resolved.id,
+    modality,
+    ok: true,
+    latencyMs: pub.latencyMs,
+  });
+
+  return jsonResponse(200, {
+    created: Math.floor(Date.now() / 1000),
+    model: resolved.id,
+    modality,
+    prompt,
+    content: pub.content,
+    data: (pub.artifacts ?? []).map((a) => ({
+      url: artifactUrl(opts.origin, a.id),
+      path: a.path,
+      mime: a.mime,
+      id: a.id,
+    })),
+    modeldesk: modeldeskMeta(pub, opts.origin),
+  });
+}

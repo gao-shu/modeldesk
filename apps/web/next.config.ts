@@ -1,10 +1,5 @@
 import type { NextConfig } from "next";
 
-const radarBase = (
-  process.env.RADAR_API_BASE ||
-  "http://127.0.0.1:9800"
-).replace(/\/$/, "");
-
 const nextConfig: NextConfig = {
   // Docker / 精简镜像用 standalone 输出
   output: "standalone",
@@ -40,14 +35,6 @@ const nextConfig: NextConfig = {
     "cos-nodejs-sdk-v5",
     "bce-sdk-js",
   ],
-  async rewrites() {
-    return [
-      {
-        source: "/proxy/radar/:path*",
-        destination: `${radarBase}/:path*`,
-      },
-    ];
-  },
 };
 
 export default nextConfig;

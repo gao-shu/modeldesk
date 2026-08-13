@@ -51,9 +51,9 @@ ModelDesk 用 **`api_format`** 描述「怎么调厂商接口」。本目录是�
 | `image.agnes` | [image-agnes.md](./image-agnes.md) | core | 部分对齐 | 2026-08-10 |
 | `image.openai` | [image-openai.md](./image-openai.md) | core | 待校验 | 2026-08-10 |
 | `image.google-nano-banana` | [image-google-nano-banana.md](./image-google-nano-banana.md) | core | 待校验 | 2026-08-10 |
-| `image.openai-compatible` | [image-openai-compatible.md](./image-openai-compatible.md) | core | 待校验 | 2026-08-10 |
+| `image.openai-compatible` | [image-openai-compatible.md](./image-openai-compatible.md) | core | 部分对齐 | 2026-08-13 |
 | `image.grok` | [image-grok.md](./image-grok.md) | core | 部分对齐 | 2026-08-10 |
-| `image.openai-async` | [image-openai-async.md](./image-openai-async.md) | relay | 部分对齐 | 2026-08-10 |
+| `image.openai-async` | [image-openai-async.md](./image-openai-async.md) | relay | 部分对齐 | 2026-08-13 |
 | `image.mock` | — | extended | 内部 | — |
 
 > 遗留别名：`image.shiguang` 在代码中解析为 `image.openai-async`（旧配置兼容；新建请直接选 async）。
@@ -64,7 +64,7 @@ ModelDesk 用 **`api_format`** 描述「怎么调厂商接口」。本目录是�
 |--------|------|------|--------|----------|
 | `video.volcengine-seedance` | [video-volcengine-seedance.md](./video-volcengine-seedance.md) | core | 部分对齐 | 2026-08-10 |
 | `video.kling` | [video-kling.md](./video-kling.md) | core | 部分对齐 | 2026-08-11 |
-| `video.minimax-hailuo` | [video-minimax-hailuo.md](./video-minimax-hailuo.md) | core | 部分对齐 | 2026-08-11 |
+| `video.minimax-hailuo` | [video-minimax-hailuo.md](./video-minimax-hailuo.md) | core | 部分对齐 | 2026-08-13 |
 | `video.vidu` | [video-vidu.md](./video-vidu.md) | core | 部分对齐 | 2026-08-11 |
 | `video.zhipu-cogvideox` | [video-zhipu-cogvideox.md](./video-zhipu-cogvideox.md) | core | 待校验 | 2026-08-10 |
 | `video.volcengine-wan` | [video-volcengine-wan.md](./video-volcengine-wan.md) | core | 待校验 | 2026-08-10 |

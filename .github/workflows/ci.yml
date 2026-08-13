@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   check:
-    name: lint · test · oss
+    name: lint · oss
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -35,9 +35,3 @@ jobs:
 
       - name: OSS hygiene
         run: node scripts/check-oss.mjs
-
-      - name: Radar typecheck
-        run: pnpm --filter @modeldesk/radar-api lint
-
-      - name: Radar unit tests
-        run: pnpm test:radar

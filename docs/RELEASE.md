@@ -85,5 +85,5 @@ node scripts/sync-gitee-release.mjs --tag v0.1.0 --dir ./path/to/installers
 
 - `.github/workflows/release-desktop.yml` — 构建与发布
 - `scripts/sync-gitee-release.mjs` — Gitee API 上传
-- `scripts/build-desktop-runtime.mjs` — 打入安装包的 Web/Radar/Node 运行时
+- `scripts/build-desktop-runtime.mjs` — 打入安装包的 Web/Node 运行时
 - `apps/desktop/src-tauri/tauri.conf.json` — `nsis` + `dmg`

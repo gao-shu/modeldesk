@@ -2,13 +2,12 @@
  * Base URL 简单 / 高级模式（文本 chat + 图片 / 视频 / 语音 / 音乐）。
  *
  * 文本（DeepSeek 等）：
- *   简单 = host（https://api.deepseek.com）
- *   高级 = 完整 chat URL（…/v1/chat/completions）
+ *   简单 = host（https://api.deepseek.com）→ 请求时自动补 /v1/chat/completions
+ *   高级 = 默认填「简单」补全后的完整 URL，可再改；请求时原样使用
  *
  * 图片 / 视频等：
- *   简单 = API 根（https://ark.cn-beijing.volces.com/api/v3）
- *   高级 = 完整 action（…/api/v3/images/generations）
- *   请求时：适配器仍用 API 根 + 拼 action；高级若已含 action 则去重。
+ *   简单 = API 根（https://ark.cn-beijing.volces.com/api/v3）→ 请求时拼协议 action
+ *   高级 = 默认填完整 action URL，可再改；请求时原样使用
  */
 
 import { getApiFormat } from "./api-formats";
@@ -100,7 +99,8 @@ function apiActionPathForFormat(apiFormatId: string): string | null {
     return "/contents/generations/tasks";
   }
   if (apiFormatId === "video.kling") return "/videos/text2video";
-  if (apiFormatId === "video.minimax-hailuo") return "/v1/video_generation";
+  // Default preview path is H3 v2; Hailuo v1 still used at runtime when model ≠ MiniMax-H3
+  if (apiFormatId === "video.minimax-hailuo") return "/v2/video_generation";
   if (apiFormatId === "video.vidu") return "/text2video";
   if (
     apiFormatId === "video.zhipu-cogvideox" ||
@@ -186,15 +186,31 @@ export function resolveApiBaseUrl(
   return ensureApiRoot(withoutAction, apiFormatId);
 }
 
-/** 完整请求 URL 预览（简单模式「自动补全为」）。 */
+/**
+ * 完整提交 URL。
+ * - 简单：API 根 + 协议默认 action（自动补全）
+ * - 高级：原样使用所填 URL，不再改写路径
+ */
 export function resolveApiActionUrl(
   baseUrl: string,
   apiFormatId: string,
+  mode?: ApiBaseUrlMode,
 ): string {
+  const trimmed = baseUrl.trim().replace(/\/+$/, "");
+  if (!trimmed || trimmed.startsWith("mock://")) return trimmed;
+
+  const effective =
+    mode ?? inferApiBaseUrlMode(trimmed, apiFormatId);
+
   if (formatSupportsChatBaseUrlMode(apiFormatId)) {
-    return resolveChatCompletionsUrl(baseUrl);
+    return resolveChatCompletionsUrl(trimmed, effective);
   }
-  const root = resolveApiBaseUrl(baseUrl, apiFormatId);
+
+  if (effective === "advanced") {
+    return trimmed;
+  }
+
+  const root = resolveApiBaseUrl(trimmed, apiFormatId);
   const action = apiActionPathForFormat(apiFormatId);
   if (!root || !action) return root;
   if (root.toLowerCase().endsWith(action.toLowerCase())) return root;
@@ -226,8 +242,8 @@ export function toSimpleApiBaseUrl(
 }
 
 /**
- * 高级模式：完整 action URL。
- * 例：https://ark.cn-beijing.volces.com/api/v3/images/generations
+ * 切到高级时的默认 Base：等于「简单」模式下自动补全后的完整请求 URL。
+ * 之后用户可再改；运行时高级仍按所填原样使用。
  */
 export function toAdvancedApiBaseUrl(
   baseUrl: string,
@@ -236,10 +252,10 @@ export function toAdvancedApiBaseUrl(
 ): string {
   if (formatSupportsChatBaseUrlMode(apiFormatId)) {
     const seed = baseUrl.trim() || fallback || "https://api.deepseek.com";
-    return resolveChatCompletionsUrl(seed);
+    return resolveChatCompletionsUrl(seed, "simple");
   }
   const simple = toSimpleApiBaseUrl(baseUrl, apiFormatId, fallback);
-  return resolveApiActionUrl(simple, apiFormatId) || simple;
+  return resolveApiActionUrl(simple, apiFormatId, "simple") || simple;
 }
 
 export function inferApiBaseUrlMode(
@@ -263,15 +279,28 @@ export function inferApiBaseUrlMode(
   if (!path) return "simple";
   if (rootPath && (path === rootPath || path === "")) return "simple";
   if (rootPath && path.startsWith(`${rootPath}/`)) return "advanced";
-  // Host-only without root → still "simple" (will expand on resolve)
-  if (!rootPath) return "simple";
-  return path === rootPath ? "simple" : "simple";
+  // Host-only API root（如 MiniMax suggested 无 path）：有 pathname 即视为高级自定义
+  if (!rootPath) return path ? "advanced" : "simple";
+  return "simple";
 }
 
-/** Preview under the toggle（简单模式下「请求时自动补全为 …」）. */
+/** Read persisted `base_url_mode` from model defaults (if any). */
+export function apiBaseUrlModeFromDefaults(
+  defaults: unknown,
+): ApiBaseUrlMode | undefined {
+  if (!defaults || typeof defaults !== "object" || Array.isArray(defaults)) {
+    return undefined;
+  }
+  const v = (defaults as Record<string, unknown>).base_url_mode;
+  if (v === "simple" || v === "advanced") return v;
+  return undefined;
+}
+
+/** Preview under the toggle：简单=自动补全后的 URL；高级=原样。 */
 export function previewResolvedApiBaseUrl(
   baseUrl: string,
   apiFormatId: string,
+  mode?: ApiBaseUrlMode,
 ): string {
-  return resolveApiActionUrl(baseUrl, apiFormatId);
+  return resolveApiActionUrl(baseUrl, apiFormatId, mode);
 }

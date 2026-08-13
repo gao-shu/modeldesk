@@ -5,9 +5,14 @@ import {
   CAPABILITIES_BY_MODALITY,
   MODALITIES,
   PROVIDER_PRESETS,
+  apiBaseUrlModeFromDefaults,
   canonicalizeApiModelId,
   defaultApiFormatId,
+  defaultPollUrlTemplate,
+  formatSupportsApiBaseUrlMode,
+  formatSupportsPollUrl,
   getApiFormat,
+  inferApiBaseUrlMode,
   resolveApiFormatId,
   type Modality,
 } from "@modeldesk/shared";
@@ -41,6 +46,7 @@ function initialForm(): ApiConfigFormState {
   const modality: Modality = "text";
   const apiFormat = defaultApiFormatId(modality);
   const fmt = getApiFormat(apiFormat);
+  const baseUrl = fmt?.suggestedBaseUrl ?? "https://api.deepseek.com";
   return {
     name: "",
     modality,
@@ -48,7 +54,9 @@ function initialForm(): ApiConfigFormState {
     provider: "custom",
     presetId: "custom",
     apiFormat,
-    baseUrl: fmt?.suggestedBaseUrl ?? "https://api.deepseek.com",
+    baseUrl,
+    baseUrlMode: inferApiBaseUrlMode(baseUrl, apiFormat),
+    pollUrl: "",
     apiKey: "",
     modelId: fmt?.suggestedModelId ?? "deepseek-v4-pro",
     defaults: emptyDefaults(modality, apiFormat),
@@ -71,9 +79,26 @@ function formFromModel(model: ApiConfigListItem): ApiConfigFormState {
   });
   const defaults = emptyDefaults(modality, apiFormat);
   for (const [k, v] of Object.entries(model.defaults ?? {})) {
-    if (k === "api_format" || k === "apiFormat") continue;
+    if (
+      k === "api_format" ||
+      k === "apiFormat" ||
+      k === "base_url_mode" ||
+      k === "poll_url"
+    ) {
+      continue;
+    }
     defaults[k] = v == null ? "" : String(v);
   }
+  const baseUrl = model.baseUrl ?? "";
+  const pollUrlRaw = model.defaults?.poll_url;
+  const baseUrlMode =
+    apiBaseUrlModeFromDefaults(model.defaults) ??
+    inferApiBaseUrlMode(baseUrl, apiFormat);
+  const modelId = canonicalizeApiModelId(apiFormat, model.modelId);
+  const savedPoll =
+    typeof pollUrlRaw === "string" && pollUrlRaw.trim()
+      ? pollUrlRaw.trim()
+      : "";
   return {
     name: model.name,
     modality,
@@ -81,9 +106,15 @@ function formFromModel(model: ApiConfigListItem): ApiConfigFormState {
     provider: model.provider,
     presetId: preset.id,
     apiFormat,
-    baseUrl: model.baseUrl ?? "",
+    baseUrl,
+    baseUrlMode,
+    pollUrl:
+      savedPoll ||
+      (baseUrlMode === "advanced" && formatSupportsPollUrl(apiFormat)
+        ? defaultPollUrlTemplate(apiFormat, baseUrl, modelId)
+        : ""),
     apiKey: "",
-    modelId: canonicalizeApiModelId(apiFormat, model.modelId),
+    modelId,
     defaults,
   };
 }
@@ -122,21 +153,34 @@ export function ModelsPageClient({
     const baseUrl = sp.get("baseUrl")?.trim() || "";
     const modelId = sp.get("modelId")?.trim() || "";
     const website = sp.get("website")?.trim() || "";
-    if (!name && !baseUrl && !modelId) return;
+    const modalityRaw = sp.get("modality")?.trim() || "";
+    if (!name && !baseUrl && !modelId && !website) return;
 
-    const modality: Modality = "text";
+    const modality: Modality = (
+      (MODALITIES as readonly string[]).includes(modalityRaw)
+        ? modalityRaw
+        : "text"
+    ) as Modality;
     const apiFormat = defaultApiFormatId(modality);
+    const fmt = getApiFormat(apiFormat);
+    const nextBaseUrl = baseUrl || fmt?.suggestedBaseUrl || "";
+    setModalityFilter(modality);
     setEditingId(null);
     setForm({
-      name: name || "from-radar",
+      name: name || "from-link",
       modality,
       capability: CAPABILITIES_BY_MODALITY[modality][0],
       provider: "custom",
       presetId: "custom",
       apiFormat,
-      baseUrl: baseUrl || "",
+      baseUrl: nextBaseUrl,
+      baseUrlMode: inferApiBaseUrlMode(nextBaseUrl, apiFormat),
+      pollUrl: "",
       apiKey: "",
-      modelId: modelId || "gpt-4o-mini",
+      modelId:
+        modelId ||
+        fmt?.suggestedModelId ||
+        (modality === "text" ? "gpt-4o-mini" : ""),
       defaults: emptyDefaults(modality, apiFormat),
     });
     setFormOpen(true);
@@ -145,8 +189,11 @@ export function ModelsPageClient({
         ? "已预填 Base URL，请补全 API Key 后保存。"
         : website
           ? `已预填名称；官网 ${website}（请自行填写 API Base URL 与 Key）。`
-          : "已从找接口页预填，请补全后保存。",
+          : "已从链接预填，请补全后保存。",
     );
+    // Drop query so refresh / share doesn't re-open the drawer.
+    const next = window.location.pathname + window.location.hash;
+    window.history.replaceState(null, "", next);
   }, []);
 
   const refresh = useCallback(async () => {
@@ -247,6 +294,7 @@ export function ModelsPageClient({
     const apiFormat = defaultApiFormatId(modality);
     const fmt = getApiFormat(apiFormat);
     const modelId = fmt?.suggestedModelId ?? "";
+    const nextBaseUrl = fmt?.suggestedBaseUrl ?? "";
     setEditingId(null);
     setForm({
       name: suggestedConfigName(fmt?.label, modelId),
@@ -255,7 +303,9 @@ export function ModelsPageClient({
       provider: "custom",
       presetId: "custom",
       apiFormat,
-      baseUrl: fmt?.suggestedBaseUrl ?? "",
+      baseUrl: nextBaseUrl,
+      baseUrlMode: inferApiBaseUrlMode(nextBaseUrl, apiFormat),
+      pollUrl: "",
       apiKey: "",
       modelId,
       defaults: emptyDefaults(modality, apiFormat),
@@ -284,8 +334,28 @@ export function ModelsPageClient({
         capability: form.capability,
         provider: form.provider.trim() || form.presetId || "custom",
         baseUrl: form.baseUrl.trim() || null,
-        modelId: canonicalizeApiModelId(form.apiFormat, form.modelId.trim()),
-        defaults: parseDefaults(form.defaults, form.apiFormat),
+        modelId:
+          form.baseUrlMode === "advanced"
+            ? form.modelId.trim()
+            : canonicalizeApiModelId(form.apiFormat, form.modelId.trim()),
+        defaults: {
+          ...parseDefaults(form.defaults, form.apiFormat),
+          ...(formatSupportsApiBaseUrlMode(form.apiFormat)
+            ? { base_url_mode: form.baseUrlMode }
+            : {}),
+          ...(form.baseUrlMode === "advanced" &&
+          formatSupportsPollUrl(form.apiFormat)
+            ? {
+                poll_url:
+                  (form.pollUrl ?? "").trim() ||
+                  defaultPollUrlTemplate(
+                    form.apiFormat,
+                    form.baseUrl,
+                    form.modelId,
+                  ),
+              }
+            : {}),
+        },
         ...(form.apiKey.trim()
           ? { apiKey: form.apiKey.trim() }
           : editingId
@@ -325,17 +395,25 @@ export function ModelsPageClient({
   }
 
   async function removeModel(id: string, name: string) {
-    if (!window.confirm(`确定删除模型「${name}」？`)) return;
     setError(null);
-    const res = await fetch(`/api/models/${id}`, { method: "DELETE" });
-    const data = (await res.json()) as { ok: boolean; error?: string };
-    if (!data.ok) {
-      setError(data.error ?? "删除失败");
-      return;
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/models/${id}`, { method: "DELETE" });
+      const data = (await res.json()) as { ok: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        setError(data.error ?? "删除失败");
+        return;
+      }
+      setMessage(`已删除「${name}」。`);
+      if (editingId === id) {
+        setFormOpen(false);
+        setEditingId(null);
+      }
+      invalidateCachedModels();
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "删除失败");
     }
-    setMessage(`已删除「${name}」。`);
-    invalidateCachedModels();
-    await refresh();
   }
 
   async function runTest(id: string) {
@@ -444,7 +522,9 @@ export function ModelsPageClient({
             <ApiConfigForm
               variant="drawer"
               form={form}
-              onChange={setForm}
+              onChange={(partial) =>
+                setForm((prev) => ({ ...prev, ...partial }))
+              }
               editing={Boolean(editingId)}
               busy={busy}
               onSubmit={submitForm}

@@ -6,7 +6,7 @@ ModelDesk is a **local** multimodal desk. Configure keys in Web / Desktop once; 
 |-----|-----|---------|
 | Scripts / CI | **CLI** | `modeldesk` |
 | Cursor / Claude / MCP clients | **MCP** | `modeldesk-mcp` |
-| OpenAI-compatible HTTP clients | **Gateway** | `modeldesk-gateway` → `http://127.0.0.1:3310` |
+| OpenAI-compatible HTTP / 本机业务 | **Gateway API** | 默认 Web `http://127.0.0.1:3300/v1`；可选无头 `modeldesk-gateway` → `:3310` |
 
 One shared kernel: [`apps/web/src/lib/server/run-core.ts`](../apps/web/src/lib/server/run-core.ts). Do not add parallel run logic in the shells.
 
@@ -101,15 +101,26 @@ Tools: `list_models`, `list_active_runs`, `cancel_run`, `run_text` / `run_image`
 
 Full guide: [apps/mcp/README.md](../apps/mcp/README.md)
 
-## Gateway (chat HTTP)
+## Gateway API (multimodal HTTP · 默认挂在 Web)
 
-```bash
-modeldesk-gateway
-# GET  http://127.0.0.1:3310/v1/models
-# POST http://127.0.0.1:3310/v1/chat/completions
+**默认（推荐）：** 打开 Web / 桌面后直接用 `http://127.0.0.1:3300`：
+
+```text
+GET  /v1/models  /v1/aliases  /openapi.yaml  /healthz
+POST /v1/chat/completions
+POST /v1/images/generations | /v1/videos/generations | /v1/audio/speech | /v1/music/generations
+GET  /v1/artifacts/:id
 ```
 
-Keep bind on loopback. Optional `MODELDESK_GATEWAY_TOKEN`. See [apps/gateway/README.md](../apps/gateway/README.md).
+**可选无头：** `modeldesk-gateway` → `:3310`（同一契约，不开 UI 时用）。见 [apps/gateway/README.md](../apps/gateway/README.md)。
+
+Stable aliases：`PUT /v1/aliases` 或 `MODELDESK_ALIAS_*_DEFAULT`。  
+Client：`@modeldesk/gateway-client`（默认 `:3300`）。契约：`apps/web/public/openapi.yaml`。
+
+可选 `MODELDESK_GATEWAY_TOKEN`（comma-separated）或 `MODELDESK_GATEWAY_TOKENS_FILE`。
+
+业务对接：[gateway-business.md](./gateway-business.md)。  
+验收：`pnpm gateway:smoke`（无头）· `pnpm gateway:accept`（优先打已运行的 `:3300`）。
 
 ## Safety
 

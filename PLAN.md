@@ -12,7 +12,7 @@
 
 | 做 | 不做 |
 |----|------|
-| monorepo：Next Web + Radar Fastify + 可选桌面 / CLI / MCP / 网关 | 登录 / 多租户 / 计费 |
+| monorepo：Next Web + 可选桌面 / CLI / MCP / 网关 | 登录 / 多租户 / 计费 |
 | 模型配置、冒烟测试、产物库、设置 | 公网多用户托管 |
 | 本机 SQLite + 可选对象存储 | 自建卖 Token 中转 |
 
@@ -24,12 +24,11 @@
 |----|------|
 | 包管理 | pnpm **9.15.0**（Node **22**） |
 | Web | `apps/web`（Next） |
-| Radar | `apps/radar-api`（Fastify，本机探测；`/verify` 在 Radar，不在 Web） |
 | 桌面 / Agent | `apps/desktop` · `apps/mcp` · `apps/cli` · `apps/gateway` |
 | 共享包 | `packages/*`（`@modeldesk/*`） |
-| 数据 | Radar `modeldesk-radar.sqlite` + Web `modeldesk.db`（见 `MODELDESK_DATA_DIR`） |
+| 数据 | Web：`{dataDir}/modeldesk.db`（见 README「数据目录」） |
 
-默认端口：Web **3300**，Radar **9800**，网关 **3310**。CORS 默认仅 localhost；Radar / Web 默认绑定 `127.0.0.1`。
+默认端口：Web **3300**（含 Gateway `/v1`）；可选无头网关 **3310**。Web 默认绑定 `127.0.0.1`。
 
 ---
 
@@ -39,7 +38,6 @@
 modeldesk/
 ├── apps/
 │   ├── web/
-│   ├── radar-api/
 │   ├── desktop/
 │   ├── mcp/
 │   ├── cli/
@@ -50,7 +48,7 @@ modeldesk/
 │   ├── model-registry/
 │   ├── object-storage/
 │   ├── tos-storage/
-│   └── radar-types/
+│   └── gateway-client/   # Phase A official Gateway client
 ├── data/          # 本地数据（gitignore）
 ├── docs/
 │   └── adapters/  # 厂商协议对照档案
@@ -69,14 +67,11 @@ modeldesk/
 | `/gallery` | 生成结果 |
 | `/settings` | 系统设置 |
 
-> Web **不提供** `/verify`。通道探测在 **Radar**：`http://127.0.0.1:9800/verify`。
-
 ---
 
 ## 4. 验收要点
 
-- `pnpm install && pnpm seed && pnpm dev`
+- `pnpm install && pnpm dev`
 - Web：`http://127.0.0.1:3300`
-- Radar：`http://127.0.0.1:9800/health`
 - 公开发布前：`pnpm check:oss`（见 SECURITY.md）
-- 详见 README 与 `pnpm smoke` / `pnpm smoke:radar`
+- 详见 README 与 `pnpm smoke`

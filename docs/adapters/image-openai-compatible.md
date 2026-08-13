@@ -10,8 +10,8 @@
 | 建议 Base URL | （用户自填，常含 `/v1`） |
 | 典型 Model ID | `gpt-image-2` 等 |
 | 代码入口 | `api-formats.ts` · `images.ts`（openai 方言） |
-| 适配度 | 待校验 |
-| 上次校验 | 2026-08-10（档案初建） |
+| 适配度 | 部分对齐 |
+| 上次校验 | 2026-08-13 |
 
 ## 官方文档
 
@@ -25,8 +25,9 @@
 | 能力 | 文档 | 本项目 | 备注 |
 |------|------|--------|------|
 | `/images/generations` | ✓ | ✓ | |
-| `/images/edits` + 参考图 | 视上游 | ✓ | multipart；失败可回退 generations |
+| `/images/edits` + 参考图 | 视上游 | ✓ | multipart 文件优先；失败可回退 generations |
 | size/ratio/quality | 视上游 | ✓ | 档位会换算像素 |
+| 参考图 JSON | 视上游 | ✓ | **仅** `image_urls`（不喷 `image` / `images`） |
 
 ## UI 参数与约束
 
@@ -34,10 +35,13 @@
 
 ## 已知坑
 
-- 中转对 `image_url` / multipart 行为不一；异步中转请改用 `image.openai-async`。
+- 严格中转（`unknown field`）只能发上游认识的字段；兼容路径 JSON 参考图只发 `image_urls`。
+- 异步中转请改用 `image.openai-async`（同一套 `image_urls` 精简）。
+- edits：有本地/可编码文件走 multipart `image`；仅公网 URL 且无文件时用 `image_urls[]`。
 
 ## 校验记录
 
 | 日期 | 结论 | 变更 |
 |------|------|------|
+| 2026-08-13 | 部分对齐 | 参考图精简：去掉同喷 `image` / `images` / edits `image_url` |
 | 2026-08-10 | 档案初建 | |

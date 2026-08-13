@@ -4,7 +4,6 @@
  *     sidecar.mjs
  *     desktop-data-dir.mjs
  *     web/          Next standalone
- *     radar/        compiled Fastify + production node_modules (pnpm deploy)
  *     agents/       CLI / MCP / Gateway bundles (+ install-bins.mjs)
  */
 import { spawn } from "node:child_process";
@@ -40,39 +39,6 @@ function run(cmd, args, opts = {}) {
 
 function rmrf(p) {
   fs.rmSync(p, { recursive: true, force: true });
-}
-
-async function bundleRadar() {
-  const entry = path.join(REPO, "apps", "radar-api", "src", "index.ts");
-  const outdir = path.join(REPO, "apps", "radar-api", "dist-bundle");
-  const outfile = path.join(outdir, "index.js");
-  rmrf(outdir);
-  fs.mkdirSync(outdir, { recursive: true });
-
-  // ESM bundle: Fastify/avvio need dynamic require at runtime.
-  // Plain ESM crashes with: Dynamic require of "node:events" is not supported.
-  // Prepend createRequire after build (Windows shell mangles --banner:js=...).
-  await run("npx", [
-    "--yes",
-    "esbuild@0.25.0",
-    entry,
-    "--bundle",
-    "--platform=node",
-    "--format=esm",
-    "--external:better-sqlite3",
-    `--outfile=${outfile}`,
-  ]);
-  if (!fs.existsSync(outfile)) {
-    throw new Error("esbuild did not write radar bundle");
-  }
-  const banner =
-    "import { createRequire as __mdCreateRequire } from 'node:module';\n" +
-    "const require = __mdCreateRequire(import.meta.url);\n";
-  const body = fs.readFileSync(outfile, "utf8");
-  if (!body.includes("__mdCreateRequire")) {
-    fs.writeFileSync(outfile, banner + body);
-  }
-  console.log("[build-runtime] radar bundled →", outfile);
 }
 
 function copyFile(src, dest) {
@@ -196,9 +162,8 @@ async function main() {
   rmrf(RUNTIME);
   fs.mkdirSync(RUNTIME, { recursive: true });
 
-  // 1) Build web (standalone); radar bundled via esbuild (tsc has workspace quirks)
+  // 1) Build web (standalone)
   await run(pnpm, ["--filter", "@modeldesk/web", "build"]);
-  await bundleRadar();
 
   // 2) Next standalone → runtime/web
   const standalone = path.join(REPO, "apps", "web", ".next", "standalone");
@@ -216,40 +181,7 @@ async function main() {
   // sharp needs @img/* (+ detect-libc); standalone tracing often omits them → gallery/thumbs 500.
   ensureSharpRuntimeDeps(path.join(RUNTIME, "web"));
 
-  // 3) Minimal radar runtime: bundled JS + better-sqlite3 only (no pnpm deploy junctions)
-  const radarDeploy = path.join(RUNTIME, "radar");
-  rmrf(radarDeploy);
-  fs.mkdirSync(path.join(radarDeploy, "dist"), { recursive: true });
-  const bundled = path.join(REPO, "apps", "radar-api", "dist-bundle", "index.js");
-  if (!fs.existsSync(bundled)) {
-    throw new Error("radar bundle missing — bundleRadar failed?");
-  }
-  copyFile(bundled, path.join(radarDeploy, "dist", "index.js"));
-  const radarPkg = {
-    name: "modeldesk-radar-runtime",
-    private: true,
-    type: "module",
-    dependencies: {
-      "better-sqlite3":
-        JSON.parse(
-          fs.readFileSync(
-            path.join(REPO, "apps", "radar-api", "package.json"),
-            "utf8",
-          ),
-        ).dependencies["better-sqlite3"] || "^11.8.1",
-    },
-  };
-  fs.writeFileSync(
-    path.join(radarDeploy, "package.json"),
-    `${JSON.stringify(radarPkg, null, 2)}\n`,
-  );
-  await run("npm", ["install", "--omit=dev"], { cwd: radarDeploy });
-
-  if (!fs.existsSync(path.join(radarDeploy, "dist", "index.js"))) {
-    throw new Error("radar dist/index.js missing after assemble");
-  }
-
-  // 3b) Agent entries (CLI / MCP / Gateway) — bundled + local better-sqlite3
+  // 3) Agent entries (CLI / MCP / Gateway) — bundled + local better-sqlite3
   const agentsDir = path.join(RUNTIME, "agents");
   rmrf(agentsDir);
   await run(process.execPath, [
@@ -281,7 +213,7 @@ async function main() {
   );
   await run("npm", ["install", "--omit=dev"], { cwd: agentsDir });
 
-  // 4) Sidecar scripts (+ env helper imported by sidecar)
+  // 4) Sidecar scripts (+ env / port-hint helpers imported by sidecar)
   copyFile(
     path.join(REPO, "scripts", "desktop-sidecar.mjs"),
     path.join(RUNTIME, "sidecar.mjs"),
@@ -293,6 +225,10 @@ async function main() {
   copyFile(
     path.join(REPO, "scripts", "env.mjs"),
     path.join(RUNTIME, "env.mjs"),
+  );
+  copyFile(
+    path.join(REPO, "scripts", "port-hint.mjs"),
+    path.join(RUNTIME, "port-hint.mjs"),
   );
 
   // 5) Portable Node so installers need not have Node on PATH
@@ -341,15 +277,10 @@ async function main() {
   console.log("[build-runtime] OK →", RUNTIME);
 }
 
-/** Drop DB files, local data dirs, and radar→monorepo junctions (not web deps). */
+/** Drop DB files and local data dirs. */
 function sanitizeRuntime(root) {
-  // Explicit: drop local DBs / package self-links only (do not delete npm package `data/` folders)
-  for (const rel of [
-    path.join("radar", "node_modules", "@modeldesk", "radar-api"),
-    path.join("radar", "node_modules", ".pnpm", "node_modules", "@modeldesk", "radar-api"),
-    path.join("radar", "data"),
-    path.join("web", "data"),
-  ]) {
+  // Explicit: drop local DBs only (do not delete npm package `data/` folders)
+  for (const rel of [path.join("web", "data")]) {
     const p = path.join(root, rel);
     if (fs.existsSync(p)) {
       try {

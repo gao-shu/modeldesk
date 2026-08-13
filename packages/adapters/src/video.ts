@@ -5,6 +5,7 @@
 import {
   canonicalizeSeedanceModelId,
   canonicalizeWanModelId,
+  resolveApiActionUrl,
   resolveApiBaseUrl,
 } from "@modeldesk/shared";
 import { downloadBytes } from "./images";
@@ -43,6 +44,8 @@ export type VideoGenOptions = {
    * Preferred over guessing from baseUrl — required for 中转站.
    */
   apiFormat?: string;
+  /** From model.defaults.base_url_mode — advanced = submit URL as-is. */
+  baseUrlMode?: "simple" | "advanced";
   /** Poll interval ms */
   pollIntervalMs?: number;
   /** Max wait ms */
@@ -659,27 +662,20 @@ export async function generateVideo(
 
   const format = (options.apiFormat ?? "").toLowerCase();
   // Domestic vendors with non-OpenAI dialects — dispatch before the shared poller.
+  // Keep original baseUrl so advanced mode can use the full submit URL as-is.
   if (format === "video.kling") {
-    return generateKlingVideo({
-      ...options,
-      baseUrl: resolveApiBaseUrl(options.baseUrl, format) || options.baseUrl,
-    });
+    return generateKlingVideo(options);
   }
   if (format === "video.minimax-hailuo") {
-    return generateMinimaxHailuoVideo({
-      ...options,
-      baseUrl: resolveApiBaseUrl(options.baseUrl, format) || options.baseUrl,
-    });
+    return generateMinimaxHailuoVideo(options);
   }
   if (format === "video.vidu") {
-    return generateViduVideo({
-      ...options,
-      baseUrl: resolveApiBaseUrl(options.baseUrl, format) || options.baseUrl,
-    });
+    return generateViduVideo(options);
   }
 
+  const formatId = options.apiFormat ?? "";
   const baseUrl = normalizeBaseUrl(
-    resolveApiBaseUrl(options.baseUrl, options.apiFormat ?? ""),
+    resolveApiBaseUrl(options.baseUrl, formatId),
   );
   // Prefer explicit API 格式；baseUrl 猜测仅作旧数据回退。
   const agnes =
@@ -700,13 +696,16 @@ export async function generateVideo(
     format === "video.openai-compatible";
   const grok = format === "video.grok";
 
-  const submitPath =
-    options.http?.submitPath ??
-    (volcengine
-      ? "/contents/generations/tasks"
-      : agnes || openaiVideos
-        ? "/videos"
-        : "/videos/generations");
+  const defaultSubmitPath = volcengine
+    ? "/contents/generations/tasks"
+    : agnes || openaiVideos
+      ? "/videos"
+      : "/videos/generations";
+  // 高级模式：提交 URL 原样；简单模式：根 + action。轮询仍用 API 根。
+  const submitUrl = options.http?.submitPath
+    ? `${baseUrl}${options.http.submitPath}`
+    : resolveApiActionUrl(options.baseUrl, formatId, options.baseUrlMode) ||
+      `${baseUrl}${defaultSubmitPath}`;
   const statusPath =
     options.http?.statusPath ?? (zhipu ? "task_status" : "status");
   const urlPath =
@@ -907,12 +906,12 @@ export async function generateVideo(
   }
 
   const httpLog = {
-    url: `${baseUrl}${submitPath}`,
+    url: submitUrl,
     body: redactImageFieldsForLog({ ...submitBody }),
   };
   options.onHttpLog?.(httpLog);
 
-  const submitRes = await fetch(`${baseUrl}${submitPath}`, {
+  const submitRes = await fetch(submitUrl, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${options.apiKey}`,
@@ -995,10 +994,13 @@ export async function generateVideo(
       pollUrl = `${origin}/agnesapi?video_id=${encodeURIComponent(pollId)}&model_name=${encodeURIComponent(options.model)}`;
     } else {
       const pollPath = pollTemplate.replace(
-        "{{id}}",
+        /\{\{id\}\}/gi,
         encodeURIComponent(pollId),
       );
-      pollUrl = `${baseUrl}${pollPath}`;
+      // 高级配置可填完整查询 URL；相对路径仍拼到 baseUrl
+      pollUrl = /^https?:\/\//i.test(pollPath)
+        ? pollPath
+        : `${baseUrl.replace(/\/+$/, "")}${pollPath.startsWith("/") ? pollPath : `/${pollPath}`}`;
     }
 
     const pollRes = await fetch(pollUrl, {

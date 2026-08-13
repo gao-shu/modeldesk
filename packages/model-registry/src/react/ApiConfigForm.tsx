@@ -6,7 +6,9 @@ import {
   apiFormatsForModality,
   buildParamsForApiFormat,
   canonicalizeApiModelId,
+  defaultPollUrlTemplate,
   formatSupportsApiBaseUrlMode,
+  formatSupportsPollUrl,
   getApiFormat,
   inferApiBaseUrlMode,
   modalityLabel,
@@ -14,6 +16,7 @@ import {
   previewResolvedApiBaseUrl,
   toAdvancedApiBaseUrl,
   toSimpleApiBaseUrl,
+  type ApiBaseUrlMode,
   type Modality,
 } from "@modeldesk/shared";
 import type {
@@ -23,7 +26,8 @@ import type {
 
 export type ApiConfigFormProps = {
   form: ApiConfigFormState;
-  onChange: (next: ApiConfigFormState) => void;
+  /** Merge patch into latest form state (parent should use functional setState). */
+  onChange: (partial: Partial<ApiConfigFormState>) => void;
   editing: boolean;
   busy?: boolean;
   /** @deprecated Preset picker removed; kept for call-site compatibility. */
@@ -136,6 +140,8 @@ export function suggestedConfigName(
     id.includes("hailuo") ||
     id.startsWith("minimax-h") ||
     id === "minimax-h3" ||
+    id === "mimaxh3" ||
+    id === "minimaxh3" ||
     id.startsWith("t2v-01")
   ) {
     return raw ? `海螺 · ${raw}` : "MiniMax 海螺";
@@ -279,7 +285,14 @@ export function parseDefaults(
   const out: Record<string, unknown> = {};
   if (apiFormat) out.api_format = apiFormat;
   for (const [key, value] of Object.entries(raw)) {
-    if (key === "api_format" || key === "apiFormat") continue;
+    if (
+      key === "api_format" ||
+      key === "apiFormat" ||
+      key === "base_url_mode" ||
+      key === "poll_url"
+    ) {
+      continue;
+    }
     const trimmed = value.trim();
     if (!trimmed) continue;
     if (trimmed === "true" || trimmed === "false") {
@@ -322,12 +335,48 @@ export function ApiConfigForm({
   const activeFormat = getApiFormat(form.apiFormat);
   const modelOptions = activeFormat?.modelOptions ?? [];
   const modelOptionLabels = activeFormat?.modelOptionLabels ?? {};
-  const allowCustomModelId = form.apiFormat.endsWith("-compatible");
+  // 高级：自由填写上游 Model ID（中转常用小写 id）；简单：兼容格式可自定义，其它用下拉
+  const allowCustomModelId =
+    form.baseUrlMode === "advanced" ||
+    form.apiFormat.endsWith("-compatible");
   const showBaseUrlMode = formatSupportsApiBaseUrlMode(form.apiFormat);
-  const baseUrlMode = inferApiBaseUrlMode(form.baseUrl, form.apiFormat);
+  const baseUrlMode: ApiBaseUrlMode = form.baseUrlMode;
+  // 高级模式：所有支持简单/高级的非 chat 模型都显示查询 URL（简单不显示）
+  const showPollUrl =
+    baseUrlMode === "advanced" && formatSupportsPollUrl(form.apiFormat);
+  const pollUrlSafe = (form.pollUrl ?? "").trim();
+  const pollUrlDefault = showPollUrl
+    ? defaultPollUrlTemplate(form.apiFormat, form.baseUrl, form.modelId)
+    : "";
+  const resolvedActionUrl = form.baseUrl.trim()
+    ? previewResolvedApiBaseUrl(form.baseUrl, form.apiFormat, baseUrlMode)
+    : "";
 
   function patch(partial: Partial<ApiConfigFormState>) {
-    onChange({ ...form, ...partial });
+    onChange(partial);
+  }
+
+  /** 高级：预填协议默认查询 URL；用户改过后不再自动覆盖。简单：清空。 */
+  function nextPollUrlFor(
+    apiFormat: string,
+    mode: ApiBaseUrlMode,
+    baseUrl: string,
+    modelId: string,
+    currentPoll: string,
+    prevBaseUrl: string,
+    prevModelId: string,
+    prevApiFormat = apiFormat,
+  ): string {
+    if (mode !== "advanced" || !formatSupportsPollUrl(apiFormat)) return "";
+    const nextDefault = defaultPollUrlTemplate(apiFormat, baseUrl, modelId);
+    const prevDefault = defaultPollUrlTemplate(
+      prevApiFormat,
+      prevBaseUrl,
+      prevModelId,
+    );
+    const cur = (currentPoll ?? "").trim();
+    if (!cur || cur === prevDefault) return nextDefault;
+    return currentPoll;
   }
 
   function setBaseUrlMode(mode: "simple" | "advanced") {
@@ -339,15 +388,29 @@ export function ApiConfigForm({
     if (mode === "simple") {
       patch({
         baseUrl: toSimpleApiBaseUrl(form.baseUrl, form.apiFormat, fallback),
+        baseUrlMode: "simple",
+        pollUrl: "",
         presetId: "custom",
       });
       return;
     }
+    // 高级：默认填入「简单」补全后的完整 URL，之后可再改
+    const nextBase = toAdvancedApiBaseUrl(
+      form.baseUrl,
+      form.apiFormat,
+      fallback || "https://api.deepseek.com",
+    );
     patch({
-      baseUrl: toAdvancedApiBaseUrl(
-        form.baseUrl,
+      baseUrl: nextBase,
+      baseUrlMode: "advanced",
+      pollUrl: nextPollUrlFor(
         form.apiFormat,
-        fallback || "https://api.deepseek.com",
+        "advanced",
+        nextBase,
+        form.modelId,
+        "",
+        form.baseUrl,
+        form.modelId,
       ),
       presetId: "custom",
     });
@@ -365,10 +428,22 @@ export function ApiConfigForm({
       form.modelId || activeFormat?.suggestedModelId || "",
     );
     const nameIsAuto = !form.name.trim() || form.name.trim() === prevAuto;
+    const nextBaseUrl = fmt?.suggestedBaseUrl || form.baseUrl;
+    const nextMode = inferApiBaseUrlMode(nextBaseUrl, apiFormat);
     patch({
       apiFormat,
       defaults: emptyDefaults(form.modality, apiFormat),
-      baseUrl: fmt?.suggestedBaseUrl || form.baseUrl,
+      baseUrl: nextBaseUrl,
+      baseUrlMode: nextMode,
+      pollUrl: nextPollUrlFor(
+        apiFormat,
+        nextMode,
+        nextBaseUrl,
+        nextModelId,
+        "",
+        form.baseUrl,
+        form.modelId,
+      ),
       modelId: nextModelId,
       presetId: "custom",
       ...(nameIsAuto && autoName ? { name: autoName } : {}),
@@ -386,10 +461,23 @@ export function ApiConfigForm({
       : "flex h-full min-h-0 flex-col bg-white";
 
   function pickModelId(modelId: string) {
-    const next = canonicalizeApiModelId(form.apiFormat, modelId);
+    // 高级：原样保留用户输入；简单：仍做官方别名规范化
+    const next =
+      form.baseUrlMode === "advanced"
+        ? modelId.trim()
+        : canonicalizeApiModelId(form.apiFormat, modelId);
     const autoName = suggestedConfigName(activeFormat?.label, next);
     patch({
       modelId: next,
+      pollUrl: nextPollUrlFor(
+        form.apiFormat,
+        form.baseUrlMode,
+        form.baseUrl,
+        next,
+        form.pollUrl,
+        form.baseUrl,
+        form.modelId,
+      ),
       ...(form.name.trim() &&
       form.name !== suggestedConfigName(activeFormat?.label, form.modelId)
         ? {}
@@ -501,7 +589,11 @@ export function ApiConfigForm({
                       value={form.modelId}
                       onChange={(e) => pickModelId(e.target.value)}
                       className="md-control md-control-mono"
-                      placeholder="model-id"
+                      placeholder={
+                        baseUrlMode === "advanced"
+                          ? "例如 minimax-h3（按中转原样填写）"
+                          : "model-id"
+                      }
                     />
                     {modelOptions.length > 0 ? (
                       <datalist id={modelSuggestionsListId}>
@@ -538,18 +630,62 @@ export function ApiConfigForm({
           </>
         )}
 
+        {showBaseUrlMode ? (
+          <span className="inline-flex h-8 w-fit overflow-hidden rounded-md border border-zinc-300 text-sm">
+            <button
+              type="button"
+              onClick={() => setBaseUrlMode("simple")}
+              className={`px-3 ${
+                baseUrlMode === "simple"
+                  ? "bg-zinc-900 text-white"
+                  : "bg-white text-zinc-600 hover:bg-zinc-50"
+              }`}
+            >
+              简单
+            </button>
+            <button
+              type="button"
+              onClick={() => setBaseUrlMode("advanced")}
+              className={`px-3 ${
+                baseUrlMode === "advanced"
+                  ? "bg-zinc-900 text-white"
+                  : "bg-white text-zinc-600 hover:bg-zinc-50"
+              }`}
+            >
+              高级
+            </button>
+          </span>
+        ) : null}
+
         <label className="md-field">
           <span className="md-label">Base URL</span>
           <input
             value={form.baseUrl}
-            onChange={(e) =>
+            onChange={(e) => {
+              const baseUrl = e.target.value;
+              // 深层 path → 升为高级；输入时绝不自动降回简单（避免盖掉用户刚点的「高级」）
+              const inferred = inferApiBaseUrlMode(baseUrl, form.apiFormat);
+              const nextMode =
+                inferred === "advanced" ? ("advanced" as const) : baseUrlMode;
               patch({
-                baseUrl: e.target.value,
+                baseUrl,
                 presetId: "custom",
                 provider:
                   form.provider === "custom" ? "custom" : form.provider,
-              })
-            }
+                ...(inferred === "advanced"
+                  ? { baseUrlMode: "advanced" as const }
+                  : {}),
+                pollUrl: nextPollUrlFor(
+                  form.apiFormat,
+                  nextMode,
+                  baseUrl,
+                  form.modelId,
+                  form.pollUrl,
+                  form.baseUrl,
+                  form.modelId,
+                ),
+              });
+            }}
             className="md-control md-control-mono"
             placeholder={
               showBaseUrlMode && baseUrlMode === "simple"
@@ -567,42 +703,37 @@ export function ApiConfigForm({
                   : "例如 https://api.example.com/v1"
             }
           />
+          {showBaseUrlMode && resolvedActionUrl ? (
+            <p className="md-hint mt-0.5 min-w-0 break-all">
+              实际访问：
+              <span className="font-mono text-zinc-500">
+                {resolvedActionUrl}
+              </span>
+            </p>
+          ) : null}
         </label>
-        {showBaseUrlMode ? (
-          <div className="flex flex-col gap-1.5">
-            {baseUrlMode === "simple" && form.baseUrl.trim() ? (
-              <p className="md-hint min-w-0 break-all">
-                实际访问：
-                <span className="font-mono text-zinc-500">
-                  {previewResolvedApiBaseUrl(form.baseUrl, form.apiFormat)}
-                </span>
-              </p>
-            ) : null}
-            <span className="inline-flex h-8 w-fit overflow-hidden rounded-md border border-zinc-300 text-sm">
-              <button
-                type="button"
-                onClick={() => setBaseUrlMode("simple")}
-                className={`px-3 ${
-                  baseUrlMode === "simple"
-                    ? "bg-zinc-900 text-white"
-                    : "bg-white text-zinc-600 hover:bg-zinc-50"
-                }`}
-              >
-                简单
-              </button>
-              <button
-                type="button"
-                onClick={() => setBaseUrlMode("advanced")}
-                className={`px-3 ${
-                  baseUrlMode === "advanced"
-                    ? "bg-zinc-900 text-white"
-                    : "bg-white text-zinc-600 hover:bg-zinc-50"
-                }`}
-              >
-                高级
-              </button>
-            </span>
-          </div>
+
+        {showPollUrl ? (
+          <label className="md-field">
+            <span className="md-label">查询 URL</span>
+            <input
+              value={pollUrlSafe || pollUrlDefault}
+              onChange={(e) =>
+                patch({ pollUrl: e.target.value, presetId: "custom" })
+              }
+              onFocus={() => {
+                if (!pollUrlSafe && pollUrlDefault) {
+                  patch({ pollUrl: pollUrlDefault });
+                }
+              }}
+              className="md-control md-control-mono"
+              placeholder={pollUrlDefault}
+            />
+            <p className="md-hint mt-0.5">
+              轮询任务状态；默认按当前协议预填，可改。{"{{id}}"} 为任务
+              id。
+            </p>
+          </label>
         ) : null}
 
         <label className="md-field">

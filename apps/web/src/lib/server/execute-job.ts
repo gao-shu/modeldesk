@@ -111,6 +111,7 @@ function readImageDimensions(bytes: Buffer): string | null {
   return null;
 }
 import {
+  apiBaseUrlModeFromDefaults,
   applyFormatParamAliases,
   resolveRunParams,
   resolveRunParamsForFormat,
@@ -258,6 +259,7 @@ async function runTextJob(input: JobExecParams): Promise<JobExecResult> {
       maxTokens,
       timeoutMs: 120_000,
       signal: input.signal ?? undefined,
+      baseUrlMode: apiBaseUrlModeFromDefaults(publicModel.defaults),
     }) as AsyncGenerator<StreamChatChunk>) {
       if (input.signal?.aborted) {
         return abortResult(input, started, content || undefined);
@@ -478,6 +480,7 @@ async function runImageJob(input: JobExecParams): Promise<JobExecResult> {
       ratio,
       n: n ?? 1,
       apiFormat,
+      baseUrlMode: apiBaseUrlModeFromDefaults(publicModel.defaults),
       aspectRatio,
       resolution,
       responseFormat,
@@ -838,6 +841,13 @@ async function runVideoJob(input: JobExecParams): Promise<JobExecResult> {
       },
       onStatus: (status, detail) => {
         touchJobHeartbeat(input.jobId);
+        mergeJobResponse(input.jobId, {
+          _progress: {
+            status,
+            detail: detail ?? null,
+            at: new Date().toISOString(),
+          },
+        });
         input.onEvent?.(
           "status",
           slotPayload(input.slot, {

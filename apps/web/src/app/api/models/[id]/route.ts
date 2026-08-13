@@ -79,6 +79,22 @@ export async function DELETE(_request: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
     await getModelRegistry().deleteConfig(id);
+    try {
+      const { loadStoredAliases, saveAliases } = await import(
+        "@/lib/server/gateway/aliases"
+      );
+      const aliases = loadStoredAliases();
+      let changed = false;
+      for (const [k, v] of Object.entries(aliases)) {
+        if (v === id) {
+          delete aliases[k as keyof typeof aliases];
+          changed = true;
+        }
+      }
+      if (changed) saveAliases(aliases);
+    } catch {
+      /* aliases cleanup best-effort */
+    }
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof RegistryError && error.code === "not_found") {

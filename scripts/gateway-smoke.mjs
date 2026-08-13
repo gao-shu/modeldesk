@@ -35,14 +35,34 @@ try {
   const models = await fetch("http://127.0.0.1:3310/v1/models").then((r) =>
     r.json(),
   );
+  const aliases = await fetch("http://127.0.0.1:3310/v1/aliases").then((r) =>
+    r.json(),
+  );
+  const openapi = await fetch("http://127.0.0.1:3310/openapi.yaml");
+  const openapiText = await openapi.text();
+  const hasAliases =
+    Array.isArray(aliases?.aliases) && aliases.aliases.length >= 5;
+  const registryRow = (models?.data ?? []).find(
+    (m) => m && m.owned_by !== "modeldesk-alias" && typeof m.modality === "string",
+  );
+  const hasApiKeyField =
+    !registryRow || typeof registryRow.hasApiKey === "boolean";
   const ok =
-    health?.ok === true && Array.isArray(models?.data) && models.data.length >= 0;
+    health?.ok === true &&
+    Array.isArray(models?.data) &&
+    hasAliases &&
+    hasApiKeyField &&
+    openapi.ok &&
+    openapiText.includes("ModelDesk Gateway");
   console.log(
     JSON.stringify(
       {
         ok,
         health,
         modelCount: models?.data?.length ?? 0,
+        aliasCount: aliases?.aliases?.length ?? 0,
+        hasApiKeyField,
+        openapiBytes: openapiText.length,
         stderrPreview: err.slice(0, 300),
       },
       null,

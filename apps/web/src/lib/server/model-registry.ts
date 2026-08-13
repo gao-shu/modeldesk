@@ -7,6 +7,7 @@ import {
 } from "@modeldesk/model-registry";
 import { generateVideo } from "@modeldesk/adapters";
 import {
+  apiBaseUrlModeFromDefaults,
   resolveApiFormatId,
   resolveRunParamsForFormat,
   videoSettingsFromParams,
@@ -177,7 +178,11 @@ async function adapterGenerateVideo(input: VideoGenerateAdapterInput) {
     await Promise.all(referenceAudiosRaw.map((r) => ensurePublicVoiceUrl(r)))
   ).filter((x): x is string => Boolean(x?.trim()));
 
-  const http =
+  const pollUrl =
+    typeof pub.defaults.poll_url === "string"
+      ? pub.defaults.poll_url.trim()
+      : "";
+  const httpFromDefaults =
     pub.defaults.http &&
     typeof pub.defaults.http === "object" &&
     !Array.isArray(pub.defaults.http)
@@ -187,6 +192,13 @@ async function adapterGenerateVideo(input: VideoGenerateAdapterInput) {
           statusPath?: string;
           urlPath?: string;
         })
+      : undefined;
+  const http =
+    pollUrl || httpFromDefaults
+      ? {
+          ...httpFromDefaults,
+          ...(pollUrl ? { pollPathTemplate: pollUrl } : {}),
+        }
       : undefined;
 
   const baseUrl = resolved.baseUrl ?? "mock://video";
@@ -198,6 +210,7 @@ async function adapterGenerateVideo(input: VideoGenerateAdapterInput) {
     model: resolved.modelId,
     prompt: input.prompt,
     apiFormat,
+    baseUrlMode: apiBaseUrlModeFromDefaults(pub.defaults),
     http,
     width: knobs.width,
     height: knobs.height,

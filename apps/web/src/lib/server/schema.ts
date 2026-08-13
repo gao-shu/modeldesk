@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS eval_run_models (
   slot INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (run_id, model_id),
   FOREIGN KEY (run_id) REFERENCES eval_runs(id) ON DELETE CASCADE,
-  FOREIGN KEY (model_id) REFERENCES models(id)
+  FOREIGN KEY (model_id) REFERENCES models(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS eval_jobs (
@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS eval_jobs (
   created_at TEXT NOT NULL,
   finished_at TEXT,
   FOREIGN KEY (run_id) REFERENCES eval_runs(id) ON DELETE CASCADE,
-  FOREIGN KEY (model_id) REFERENCES models(id)
+  FOREIGN KEY (model_id) REFERENCES models(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS artifacts (

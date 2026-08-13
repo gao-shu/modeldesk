@@ -31,6 +31,8 @@ export type StreamChatOptions = {
   maxTokens?: number;
   signal?: AbortSignal;
   timeoutMs?: number;
+  /** From model.defaults.base_url_mode — advanced = URL as-is. */
+  baseUrlMode?: "simple" | "advanced";
 };
 
 function normalizeBaseUrl(baseUrl: string): string {
@@ -93,7 +95,10 @@ export async function* streamChatCompletion(
     return;
   }
 
-  const url = resolveChatCompletionsUrl(normalizeBaseUrl(options.baseUrl));
+  const url = resolveChatCompletionsUrl(
+    normalizeBaseUrl(options.baseUrl),
+    options.baseUrlMode,
+  );
   const timeoutMs = options.timeoutMs ?? 120_000;
   const signal =
     options.signal ??
@@ -208,7 +213,10 @@ export type NonStreamChatResult = {
 export async function chatCompletion(
   options: StreamChatOptions,
 ): Promise<NonStreamChatResult> {
-  const url = resolveChatCompletionsUrl(normalizeBaseUrl(options.baseUrl));
+  const url = resolveChatCompletionsUrl(
+    normalizeBaseUrl(options.baseUrl),
+    options.baseUrlMode,
+  );
   const started = Date.now();
   const timeoutMs = options.timeoutMs ?? 60_000;
   const signal =

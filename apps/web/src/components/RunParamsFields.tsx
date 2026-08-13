@@ -646,7 +646,7 @@ function deriveImagePairMode(
 }
 
 /** Video reference input: none / single ref / first+last / multi refs (optional). */
-function ImagePairParamControl({
+  function ImagePairParamControl({
   startValue,
   endValue,
   listValue,
@@ -655,6 +655,7 @@ function ImagePairParamControl({
   audioListMax,
   allowMultiRefs,
   allowPair = true,
+  audioOnlyInRefsMode = false,
   refModeLabel = "参考图",
   disabled,
   onChangeStart,
@@ -673,6 +674,8 @@ function ImagePairParamControl({
   allowMultiRefs?: boolean;
   /** When false, hide「首尾帧」(e.g. Grok I2V + R2V only). */
   allowPair?: boolean;
+  /** MiniMax H3：参考音频只在「多参」下出现，不与首帧/首尾帧混用. */
+  audioOnlyInRefsMode?: boolean;
   /** Single-image mode tab label (Grok:「首帧图」). */
   refModeLabel?: string;
   disabled?: boolean;
@@ -723,10 +726,12 @@ function ImagePairParamControl({
     if (next === "ref") {
       if (endValue) onChangeEnd("");
       clearList();
+      if (audioOnlyInRefsMode) clearAudio();
       return;
     }
     if (next === "pair") {
       clearList();
+      if (audioOnlyInRefsMode) clearAudio();
       return;
     }
     if (next === "refs") {
@@ -744,7 +749,9 @@ function ImagePairParamControl({
 
   const showAudio =
     Boolean(onChangeAudioList) &&
-    (mode === "ref" || mode === "pair" || mode === "refs");
+    (audioOnlyInRefsMode
+      ? mode === "refs"
+      : mode === "ref" || mode === "pair" || mode === "refs");
 
   return (
     <div className={compact ? "space-y-1.5" : "space-y-2"}>
@@ -1475,6 +1482,7 @@ export function RunParamsFields({
                 audioListMax={field.audioListMax}
                 allowMultiRefs={Boolean(field.listKey?.trim())}
                 allowPair={field.allowPair !== false}
+                audioOnlyInRefsMode={Boolean(field.audioOnlyInRefsMode)}
                 refModeLabel={field.refModeLabel}
                 disabled={fieldDisabled}
                 onChangeStart={(next) => onChange(field.key, next)}

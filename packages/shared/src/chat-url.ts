@@ -2,14 +2,21 @@
  * Chat Completions URL helpers.
  * Simple mode stores host (e.g. https://api.deepseek.com);
  * request path auto-appends /v1/chat/completions when missing.
+ * Advanced mode: use the entered URL as-is (no append).
  */
 
 export type ChatBaseUrlMode = "simple" | "advanced";
 
 /** Expand a simple or /v1 base into a full chat/completions URL. */
-export function resolveChatCompletionsUrl(baseUrl: string): string {
+export function resolveChatCompletionsUrl(
+  baseUrl: string,
+  mode?: ChatBaseUrlMode,
+): string {
   const trimmed = baseUrl.trim().replace(/\/+$/, "");
   if (!trimmed || trimmed.startsWith("mock://")) return trimmed;
+
+  const effective = mode ?? inferChatBaseUrlMode(trimmed);
+  if (effective === "advanced") return trimmed;
 
   try {
     const parsed = new URL(trimmed);

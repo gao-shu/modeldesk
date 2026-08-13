@@ -311,6 +311,7 @@ export {
 } from "./model-ids";
 
 export {
+  apiBaseUrlModeFromDefaults,
   formatSupportsApiBaseUrlMode,
   inferApiBaseUrlMode,
   previewResolvedApiBaseUrl,
@@ -328,6 +329,8 @@ export {
   toSimpleChatBaseUrl,
   type ChatBaseUrlMode,
 } from "./chat-url";
+
+export { defaultMinimaxPollUrlTemplate, defaultPollUrlTemplate, formatSupportsPollUrl } from "./minimax-poll-url";
 
 export type {
   NavItem,

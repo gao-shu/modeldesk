@@ -235,6 +235,17 @@ const REFERENCE_IMAGE_PAIR: RunParamField = {
   hint: "无参考图 / 首帧 / 首尾帧",
 };
 
+/** MiniMax H3：首尾帧（i2va）或 多参参考图+可选音频（r2va，与首尾帧互斥）. */
+const REFERENCE_IMAGE_PAIR_MINIMAX: RunParamField = {
+  ...REFERENCE_IMAGE_PAIR,
+  listKey: "reference_images",
+  listMax: 9,
+  audioListKey: "reference_audios",
+  audioListMax: 3,
+  audioOnlyInRefsMode: true,
+  hint: "无 / 首帧 / 首尾帧 / 多参（≤9 张参考图；参考音频仅多参可用，与首尾帧互斥）",
+};
+
 /** Seedance 2.x：多参考图（1–9）+ 可选参考音频（须搭配图；role=reference_audio）。 */
 const REFERENCE_IMAGE_PAIR_SEEDANCE: RunParamField = {
   ...REFERENCE_IMAGE_PAIR,
@@ -1263,24 +1274,24 @@ export const API_FORMATS: readonly ApiFormatDef[] = [
   },
   {
     id: "video.minimax-hailuo",
-    label: "MiniMax 海螺",
-    hint: "api.minimaxi.com · Hailuo v1 / MiniMax-H3（v2）",
+    label: "MiniMax 海螺 / H3",
+    hint: "api.minimaxi.com · MiniMax-H3（v2）/ Hailuo（v1）",
     modality: "video",
     tier: "core",
     suggestedBaseUrl: "https://api.minimaxi.com",
-    apiActionPath: "/v1/video_generation",
-    suggestedModelId: "MiniMax-Hailuo-2.3",
+    apiActionPath: "/v2/video_generation",
+    suggestedModelId: "MiniMax-H3",
     modelOptions: [
+      "MiniMax-H3",
       "MiniMax-Hailuo-2.3",
       "MiniMax-Hailuo-02",
-      "MiniMax-H3",
       "T2V-01-Director",
       "T2V-01",
     ],
     modelOptionLabels: {
+      "MiniMax-H3": "MiniMax-H3（v2 · 2K）",
       "MiniMax-Hailuo-2.3": "Hailuo-2.3（v1）",
       "MiniMax-Hailuo-02": "Hailuo-02（v1）",
-      "MiniMax-H3": "MiniMax-H3（v2 · 2K）",
       "T2V-01-Director": "T2V-01-Director",
       "T2V-01": "T2V-01",
     },
@@ -1289,41 +1300,62 @@ export const API_FORMATS: readonly ApiFormatDef[] = [
         key: "duration_sec",
         label: "时长",
         type: "select",
-        defaultValue: "6",
+        defaultValue: "5",
         options: [
-          { value: "4", label: "4 秒（H3）", models: ["h3", "H3"] },
-          { value: "5", label: "5 秒（H3）", models: ["h3", "H3"] },
+          { value: "4", label: "4 秒", models: ["h3"] },
+          { value: "5", label: "5 秒", models: ["h3"] },
           { value: "6", label: "6 秒" },
-          { value: "8", label: "8 秒（H3）", models: ["h3", "H3"] },
+          { value: "7", label: "7 秒", models: ["h3"] },
+          { value: "8", label: "8 秒", models: ["h3"] },
+          { value: "9", label: "9 秒", models: ["h3"] },
           { value: "10", label: "10 秒" },
-          {
-            value: "15",
-            label: "15 秒（H3）",
-            models: ["h3", "H3"],
-          },
+          { value: "11", label: "11 秒", models: ["h3"] },
+          { value: "12", label: "12 秒", models: ["h3"] },
+          { value: "13", label: "13 秒", models: ["h3"] },
+          { value: "14", label: "14 秒", models: ["h3"] },
+          { value: "15", label: "15 秒", models: ["h3"] },
         ],
-        hint: "Hailuo-2.3/02：6 或 10（1080P 仅 6）；H3：4–15",
+        hint: "H3：4–15 秒整数；Hailuo-2.3/02：6 或 10（1080P 仅 6）",
       },
       {
         key: "resolution",
         label: "分辨率",
         type: "select",
-        defaultValue: "768P",
+        defaultValue: "2K",
         options: [
-          { value: "720P", label: "720P（旧型号）" },
+          {
+            value: "720P",
+            label: "720P（旧型号）",
+            excludeModels: ["h3"],
+          },
           { value: "768P", label: "768P" },
-          { value: "1080P", label: "1080P（Hailuo 6s）" },
-          { value: "2K", label: "2K（H3）", models: ["h3", "H3"] },
+          {
+            value: "1080P",
+            label: "1080P（Hailuo 6s）",
+            excludeModels: ["h3"],
+          },
+          { value: "2K", label: "2K（H3）", models: ["h3"] },
         ],
+        hint: "H3 仅 768P / 2K；选 1080P 时适配器会映射为 2K",
       },
       {
-        ...ASPECT_COMMON,
+        key: "aspect_ratio",
+        label: "画幅",
+        type: "select",
         defaultValue: "16:9",
-        hint: "H3 文生视频必填 ratio；图生由首帧决定",
+        options: [
+          { value: "16:9", label: "16:9 横屏" },
+          { value: "9:16", label: "9:16 竖屏" },
+          { value: "1:1", label: "1:1 方形" },
+          { value: "4:3", label: "4:3" },
+          { value: "3:4", label: "3:4" },
+          { value: "21:9", label: "21:9 超宽", models: ["h3"] },
+        ],
+        hint: "H3 文生必填且不能 adaptive；图生由首帧决定（adaptive）",
       },
       {
-        ...REFERENCE_IMAGE_PAIR,
-        hint: "Hailuo：首帧 → first_frame_image；H3：first_frame / last_frame",
+        ...REFERENCE_IMAGE_PAIR_MINIMAX,
+        hint: "Hailuo：首帧；H3：首帧/首尾帧仅图；「多参」才可加参考图≤9 + 可选参考音频（与首尾帧互斥）",
       },
     ],
   },
@@ -1477,7 +1509,7 @@ export const API_FORMATS: readonly ApiFormatDef[] = [
   {
     id: "video.openai-videos",
     label: "OpenAI",
-    hint: "sora-2 · /videos",
+    hint: "sora-2 · /videos（中转 POST /v1/videos 也选这个）",
     modality: "video",
     tier: "core",
     suggestedBaseUrl: "https://api.openai.com/v1",
@@ -1501,7 +1533,7 @@ export const API_FORMATS: readonly ApiFormatDef[] = [
   {
     id: "video.openai-compatible",
     label: "OpenAI 兼容",
-    hint: "自定义 /videos/generations endpoint",
+    hint: "中转 · /videos/generations（若是 /videos 请选「OpenAI」）",
     modality: "video",
     tier: "core",
     suggestedBaseUrl: "https://api.example.com/v1",
@@ -1778,6 +1810,8 @@ export function resolveApiFormatId(input: {
       bits.includes("minimax.io") ||
       bits.includes("minimax-h3") ||
       bits.includes("minimax-hailuo") ||
+      bits.includes("mimaxh3") ||
+      bits.includes("minimaxh3") ||
       (bits.includes("minimax") &&
         (bits.includes("video") || bits.includes("t2v") || bits.includes("h3")))
     ) {

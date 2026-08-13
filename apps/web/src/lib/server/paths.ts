@@ -171,8 +171,6 @@ export function ensureDataDirs(): string {
   for (const sub of ARTIFACT_SUBDIRS) {
     fs.mkdirSync(path.join(dataDir, sub), { recursive: true });
   }
-  // Desktop also uses radar/ under data dir
-  fs.mkdirSync(path.join(dataDir, "radar"), { recursive: true });
   return dataDir;
 }
 

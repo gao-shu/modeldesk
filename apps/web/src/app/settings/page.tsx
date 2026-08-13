@@ -89,6 +89,61 @@ const PROVIDER_OPTIONS = [
 
 type ProviderId = (typeof PROVIDER_OPTIONS)[number]["id"];
 
+/** Fake fill-in examples only — never real credentials. */
+const FIELD_EXAMPLES: Record<
+  ProviderId,
+  {
+    bucket: string;
+    region: string;
+    endpoint: string;
+    accessKey: string;
+    secretKey: string;
+    publicBaseUrl: string;
+  }
+> = {
+  tos: {
+    bucket: "my-demo-bucket",
+    region: "cn-beijing",
+    endpoint: "tos-cn-beijing.volces.com",
+    accessKey: "AKLTxxxxxxxxDemoAccessKeyIdxxxxx",
+    secretKey: "xxxxxxxxDemoSecretAccessKeyxxxxxxxx",
+    publicBaseUrl: "https://my-demo-bucket.tos-cn-beijing.volces.com",
+  },
+  s3: {
+    bucket: "my-s3-bucket",
+    region: "us-east-1",
+    endpoint: "s3.amazonaws.com",
+    accessKey: "AKIAxxxxxxxxEXAMPLE",
+    secretKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+    publicBaseUrl: "https://my-s3-bucket.s3.amazonaws.com",
+  },
+  oss: {
+    bucket: "my-oss-bucket",
+    region: "oss-cn-hangzhou",
+    endpoint: "oss-cn-hangzhou.aliyuncs.com",
+    accessKey: "LTAI5txxxxxxxxDemoKey",
+    secretKey: "xxxxxxxxDemoOssSecretKeyxxxxxxxx",
+    publicBaseUrl: "https://my-oss-bucket.oss-cn-hangzhou.aliyuncs.com",
+  },
+  cos: {
+    bucket: "my-cos-bucket-1250000000",
+    region: "ap-guangzhou",
+    endpoint: "",
+    accessKey: "AKIDxxxxxxxxDemoSecretId",
+    secretKey: "xxxxxxxxDemoCosSecretKeyxxxxxxxx",
+    publicBaseUrl:
+      "https://my-cos-bucket-1250000000.cos.ap-guangzhou.myqcloud.com",
+  },
+  bos: {
+    bucket: "my-bos-bucket",
+    region: "",
+    endpoint: "bj.bcebos.com",
+    accessKey: "xxxxxxxxDemoBosAccessKey",
+    secretKey: "xxxxxxxxDemoBosSecretKeyxxxxxxxx",
+    publicBaseUrl: "https://my-bos-bucket.bj.bcebos.com",
+  },
+};
+
 type FormState = {
   bucket: string;
   region: string;
@@ -161,6 +216,7 @@ export default function SettingsPage() {
   const [agentError, setAgentError] = useState<string | null>(null);
   const [mcpCopied, setMcpCopied] = useState(false);
   const [codexCopied, setCodexCopied] = useState(false);
+  const [gatewayCopied, setGatewayCopied] = useState<string | null>(null);
   const [clearRunsToo, setClearRunsToo] = useState(false);
   const [cleanupBusy, setCleanupBusy] = useState(false);
   const [cleanupMessage, setCleanupMessage] = useState<string | null>(null);
@@ -476,6 +532,53 @@ export default function SettingsPage() {
     }
   }
 
+  function gatewaySnippets(dataDir: string) {
+    const dataDirPosix = dataDir.replace(/\\/g, "/");
+    const aliases = `curl -s -X PUT http://127.0.0.1:3300/v1/aliases \\
+  -H "Content-Type: application/json" \\
+  -d "{\\"llm-default\\":\\"<text-registry-id>\\",\\"image-default\\":\\"<image-registry-id>\\"}"`;
+    const chat = `curl -s http://127.0.0.1:3300/v1/chat/completions \\
+  -H "Content-Type: application/json" \\
+  -d "{\\"model\\":\\"llm-default\\",\\"messages\\":[{\\"role\\":\\"user\\",\\"content\\":\\"hi\\"}]}"`;
+    const image = `curl -s http://127.0.0.1:3300/v1/images/generations \\
+  -H "Content-Type: application/json" \\
+  -d "{\\"model\\":\\"image-default\\",\\"prompt\\":\\"a cat\\"}"`;
+    const client = `import { createGatewayClient } from "@modeldesk/gateway-client";
+
+const md = createGatewayClient(); // 默认 http://127.0.0.1:3300
+// 可选: token: process.env.MODELDESK_GATEWAY_TOKEN
+
+await md.chatCompletions({
+  model: "llm-default",
+  messages: [{ role: "user", content: "hi" }],
+});
+await md.imagesGenerations({
+  model: "image-default",
+  prompt: "a cat",
+});`;
+    const env = `# 默认：打开 Web/桌面后直接调 :3300/v1（无需另起进程）
+# 数据目录（须与本页一致）: ${dataDirPosix}
+# 可选口令: MODELDESK_GATEWAY_TOKEN
+# 可选无头（仅 API、不开 UI）: modeldesk-gateway → :3310`;
+    return { aliases, chat, image, client, env };
+  }
+
+  async function copyGatewaySnippet(
+    key: "env" | "aliases" | "chat" | "image" | "client",
+  ) {
+    const dataDir = status?.dataDir?.trim();
+    if (!dataDir) return;
+    const snippets = gatewaySnippets(dataDir);
+    const text = snippets[key];
+    try {
+      await navigator.clipboard.writeText(text);
+      setGatewayCopied(key);
+      window.setTimeout(() => setGatewayCopied(null), 2000);
+    } catch {
+      setAgentError("复制失败，请手动选中下方示例");
+    }
+  }
+
   function formatBytes(n: number): string {
     if (n < 1024) return `${n} B`;
     if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
@@ -575,7 +678,11 @@ export default function SettingsPage() {
       : selectedSource === "env"
         ? "环境变量"
         : null;
+  const gwSnippets = status?.dataDir
+    ? gatewaySnippets(status.dataDir)
+    : null;
   const p = provider as ProviderId;
+  const examples = FIELD_EXAMPLES[p] ?? FIELD_EXAMPLES.tos;
   const accessKeyLabel = p === "cos" ? "SecretId" : "Access Key";
   const showRegion = p === "tos" || p === "s3" || p === "oss" || p === "cos";
   const showEndpoint = p === "tos" || p === "s3" || p === "oss" || p === "bos";
@@ -589,6 +696,15 @@ export default function SettingsPage() {
       <div className="space-y-4">
         <div className="rounded-lg border border-zinc-200 bg-white p-5">
           <div className="text-sm font-medium text-zinc-800">存储</div>
+          <p className="mt-1.5 text-[11px] leading-relaxed text-zinc-500">
+            数据目录内含 <span className="font-mono">modeldesk.db</span>
+            （模型与 Key）、<span className="font-mono">artifacts/</span>{" "}
+            与加密密钥文件。开发默认多用仓库{" "}
+            <span className="font-mono">data/</span>
+            ；桌面默认为{" "}
+            <span className="font-mono">%LOCALAPPDATA%\ModelDesk</span>
+            。MCP/CLI 须与此目录一致。详见 README「数据目录」。
+          </p>
           {error ? (
             <p className="mt-2 text-sm text-red-600">{error}</p>
           ) : null}
@@ -706,8 +822,7 @@ export default function SettingsPage() {
                   className="mt-1"
                 />
                 <span>
-                  迁移现有数据（数据库、加密密钥、生成结果、Radar
-                  库）。不会删除原目录。
+                  迁移现有数据（数据库、加密密钥、生成结果）。不会删除原目录。
                 </span>
               </label>
               <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -806,9 +921,14 @@ export default function SettingsPage() {
         </div>
 
         <div className="rounded-lg border border-zinc-200 bg-white p-5">
-          <div className="text-sm font-medium text-zinc-800">外部调用（CLI / MCP）</div>
+          <div className="text-sm font-medium text-zinc-800">
+            外部调用（CLI / MCP / Gateway）
+          </div>
           <p className="mt-1 text-sm text-zinc-500">
-            与上方数据目录共用同一套模型与密钥。桌面安装后会自动写入命令；也可在此修复。
+            与上方数据目录共用同一套模型与密钥。CLI / MCP 给脚本与编辑器；业务 HTTP
+            默认走 Web/桌面同端口（
+            <span className="font-mono text-xs">:3300/v1</span>
+            ），不必另起进程。桌面安装后会自动写入命令；也可在此修复。
           </p>
           {status?.agentBins ? (
             <dl className="mt-3 grid gap-2 text-sm text-zinc-600 sm:grid-cols-2">
@@ -866,11 +986,15 @@ export default function SettingsPage() {
             <p className="mt-2 text-sm text-emerald-800">{agentMessage}</p>
           ) : null}
           <p className="mt-2 text-sm text-zinc-500">
-            配置已使用绝对路径 + 当前数据目录，不依赖 PATH。粘贴到 WorkBuddy / Cursor（JSON）或 Codex（TOML）即可。
+            MCP 配置已使用绝对路径 + 当前数据目录，不依赖 PATH。粘贴到 WorkBuddy /
+            Cursor（JSON）或 Codex（TOML）即可。
           </p>
           {!status?.agentBins?.canInstall ? (
             <p className="mt-2 text-sm text-zinc-500">
-              开发仓可用：<code className="font-mono text-xs">pnpm install:bins -- --add-path</code>
+              开发仓可用：
+              <code className="font-mono text-xs">
+                pnpm install:bins -- --add-path
+              </code>
             </p>
           ) : null}
           {status?.agentBins?.mcpConfigExample ? (
@@ -878,6 +1002,68 @@ export default function SettingsPage() {
               {status.agentBins.mcpConfigExample}
             </pre>
           ) : null}
+
+          <div className="mt-6 border-t border-zinc-100 pt-5">
+            <div className="text-sm font-medium text-zinc-800">
+              Gateway API（本机业务 · 默认 :3300）
+            </div>
+            <p className="mt-1.5 text-sm leading-relaxed text-zinc-500">
+              打开本应用后即可调用{" "}
+              <span className="font-mono text-xs text-zinc-700">
+                http://127.0.0.1:3300/v1/…
+              </span>
+              （勿对公网开放）。先绑稳定别名（
+              <span className="font-mono text-xs">llm-default</span> /
+              <span className="font-mono text-xs"> image-default</span>
+              …），业务里写死别名即可换模型。可选{" "}
+              <span className="font-mono text-xs">MODELDESK_GATEWAY_TOKEN</span>
+              （Bearer；多值逗号分隔）。不开 UI 时才需要{" "}
+              <span className="font-mono text-xs">modeldesk-gateway</span>（
+              <span className="font-mono text-xs">:3310</span>
+              ）。契约：
+              <span className="font-mono text-xs">/openapi.yaml</span>、
+              <span className="font-mono text-xs">@modeldesk/gateway-client</span>
+              。
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {(
+                [
+                  ["env", "复制启动环境"],
+                  ["aliases", "复制绑别名"],
+                  ["chat", "复制文 curl"],
+                  ["image", "复制图 curl"],
+                  ["client", "复制 Client"],
+                ] as const
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  disabled={!status?.dataDir}
+                  onClick={() => void copyGatewaySnippet(key)}
+                  className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-800 hover:bg-zinc-50 disabled:opacity-50"
+                >
+                  {gatewayCopied === key ? "已复制" : label}
+                </button>
+              ))}
+            </div>
+            {gwSnippets ? (
+              <pre className="mt-3 max-h-56 overflow-auto rounded-md bg-zinc-50 p-3 font-mono text-[11px] leading-relaxed text-zinc-700">
+                {`# 1) 打开 Web/桌面（:3300）即可，无需 modeldesk-gateway
+# 2) 绑别名（registry id 在「模型配置」或 GET /v1/models）
+${gwSnippets.aliases}
+
+# 3) 业务调用（只写别名）
+${gwSnippets.chat}
+
+${gwSnippets.image}
+
+# 可选鉴权头: -H "Authorization: Bearer <MODELDESK_GATEWAY_TOKEN>"
+# 详解见仓库 docs/gateway-business.md`}
+              </pre>
+            ) : (
+              <p className="mt-2 text-sm text-zinc-500">加载数据目录后可复制示例…</p>
+            )}
+          </div>
         </div>
 
         <div className="rounded-lg border border-zinc-200 bg-white p-5">
@@ -1016,6 +1202,7 @@ export default function SettingsPage() {
                     onChange={(e) =>
                       setForm((f) => ({ ...f, bucket: e.target.value }))
                     }
+                    placeholder={examples.bucket}
                     className={fieldClass()}
                     autoComplete="off"
                   />
@@ -1030,7 +1217,7 @@ export default function SettingsPage() {
                     placeholder={
                       currentConfig?.hasAccessKey
                         ? (currentConfig.accessKeyMasked ?? "已保存，留空不改")
-                        : ""
+                        : examples.accessKey
                     }
                     className={fieldClass()}
                     autoComplete="off"
@@ -1047,7 +1234,7 @@ export default function SettingsPage() {
                     placeholder={
                       currentConfig?.hasSecretKey
                         ? (currentConfig.secretKeyMasked ?? "已保存，留空不改")
-                        : ""
+                        : examples.secretKey
                     }
                     className={fieldClass()}
                     autoComplete="new-password"
@@ -1061,6 +1248,7 @@ export default function SettingsPage() {
                       onChange={(e) =>
                         setForm((f) => ({ ...f, region: e.target.value }))
                       }
+                      placeholder={examples.region}
                       className={fieldClass()}
                       autoComplete="off"
                     />
@@ -1074,6 +1262,7 @@ export default function SettingsPage() {
                       onChange={(e) =>
                         setForm((f) => ({ ...f, endpoint: e.target.value }))
                       }
+                      placeholder={examples.endpoint}
                       className={fieldClass()}
                       autoComplete="off"
                     />
@@ -1089,6 +1278,7 @@ export default function SettingsPage() {
                         publicBaseUrl: e.target.value,
                       }))
                     }
+                    placeholder={examples.publicBaseUrl}
                     className={fieldClass()}
                     autoComplete="off"
                   />

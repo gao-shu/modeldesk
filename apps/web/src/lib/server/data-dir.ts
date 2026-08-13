@@ -22,7 +22,6 @@ const MIGRATE_NAMES = [
   "modeldesk.db-shm",
   ".encryption-secret",
   "artifacts",
-  "radar",
 ] as const;
 
 function samePath(a: string, b: string): boolean {
@@ -161,20 +160,15 @@ export function changeDataDir(options: {
   }
 
   process.env.MODELDESK_DATA_DIR = nextDir;
-  process.env.MODELDESK_RADAR_DB = path.join(
-    nextDir,
-    "radar",
-    "modeldesk-radar.sqlite",
-  );
 
   ensureDataDirs();
 
   const restartRecommended = true;
   const message = migrate
     ? migrated.length
-      ? `已切换数据目录，并迁移：${migrated.join("、")}。建议重启应用使 Radar 等子进程生效。`
-      : "已切换数据目录（源目录无可迁移文件）。建议重启应用使 Radar 等子进程生效。"
-    : "已切换数据目录（未迁移旧数据）。建议重启应用使 Radar 等子进程生效。";
+      ? `已切换数据目录，并迁移：${migrated.join("、")}。建议重启应用。`
+      : "已切换数据目录（源目录无可迁移文件）。建议重启应用。"
+    : "已切换数据目录（未迁移旧数据）。建议重启应用。";
 
   return {
     dataDir: nextDir,

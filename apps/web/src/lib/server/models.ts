@@ -179,8 +179,30 @@ export function updateModel(
 }
 
 export function deleteModel(id: string): boolean {
-  const result = getDb().prepare(`DELETE FROM models WHERE id = ?`).run(id);
-  return result.changes > 0;
+  const db = getDb();
+  if (!getModel(id)) return false;
+
+  const tx = db.transaction((modelId: string) => {
+    // eval_jobs / eval_run_models 引用 models(id) 且无 ON DELETE CASCADE
+    const jobIds = (
+      db
+        .prepare(`SELECT id FROM eval_jobs WHERE model_id = ?`)
+        .all(modelId) as Array<{ id: string }>
+    ).map((r) => r.id);
+
+    if (jobIds.length > 0) {
+      const placeholders = jobIds.map(() => "?").join(",");
+      db.prepare(
+        `DELETE FROM scores WHERE job_id IN (${placeholders})`,
+      ).run(...jobIds);
+    }
+    db.prepare(`DELETE FROM eval_jobs WHERE model_id = ?`).run(modelId);
+    db.prepare(`DELETE FROM eval_run_models WHERE model_id = ?`).run(modelId);
+    const result = db.prepare(`DELETE FROM models WHERE id = ?`).run(modelId);
+    return result.changes > 0;
+  });
+
+  return tx(id);
 }
 
 export function updateModelApiKey(

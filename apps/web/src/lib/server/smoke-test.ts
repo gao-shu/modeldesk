@@ -1,4 +1,7 @@
-import { resolveChatCompletionsUrl } from "@modeldesk/shared";
+import {
+  apiBaseUrlModeFromDefaults,
+  resolveChatCompletionsUrl,
+} from "@modeldesk/shared";
 import { getModel, getModelApiKey, toPublicModel } from "./models";
 
 export type SmokeTestResult = {
@@ -23,9 +26,10 @@ async function chatSmokeTest(input: {
   baseUrl: string;
   apiKey: string;
   modelId: string;
+  baseUrlMode?: "simple" | "advanced";
 }): Promise<SmokeTestResult> {
   const started = Date.now();
-  const url = resolveChatCompletionsUrl(input.baseUrl);
+  const url = resolveChatCompletionsUrl(input.baseUrl, input.baseUrlMode);
   let response: Response;
   try {
     response = await fetch(url, {
@@ -180,12 +184,14 @@ export async function runModelSmokeTest(id: string): Promise<{
   const baseUrl = normalizeBaseUrl(row.base_url);
 
   if (row.modality === "text" && row.capability === "chat" && baseUrl) {
+    const pub = toPublicModel(row);
     const result = await chatSmokeTest({
       baseUrl,
       apiKey,
       modelId: row.model_id,
+      baseUrlMode: apiBaseUrlModeFromDefaults(pub.defaults),
     });
-    return { model: toPublicModel(row), result };
+    return { model: pub, result };
   }
 
   if (baseUrl) {

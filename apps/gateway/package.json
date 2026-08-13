@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
-  "description": "ModelDesk OpenAI-compatible loopback gateway (chat completions)",
+  "description": "Optional headless ModelDesk Gateway (:3310); default API is Web :3300/v1",
   "type": "module",
   "bin": {
     "modeldesk-gateway": "./bin/modeldesk-gateway.mjs"
@@ -11,6 +11,7 @@
   "files": [
     "bin",
     "src",
+    "openapi.yaml",
     "tsconfig.json"
   ],
   "scripts": {

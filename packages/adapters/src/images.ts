@@ -6,6 +6,8 @@
 
 import {
   canonicalizeSeedreamModelId,
+  inferApiBaseUrlMode,
+  resolveApiActionUrl,
   resolveApiBaseUrl,
 } from "@modeldesk/shared";
 import {
@@ -33,6 +35,8 @@ export type ImageGenOptions = {
   n?: number;
   /** From model.defaults.api_format — preferred over baseUrl guess. */
   apiFormat?: string;
+  /** From model.defaults.base_url_mode — advanced = submit URL as-is. */
+  baseUrlMode?: "simple" | "advanced";
   /**
    * DashScope 万相：parameters.prompt_extend（智能改写）。
    * UI 存 "true"/"false" 字符串或 boolean。
@@ -693,7 +697,7 @@ function isTierSize(size: string | undefined): boolean {
  * - `size` is always `auto` or WIDTHxHEIGHT (OpenAI-strict channels).
  * - When UI picks a tier (1K/2K), also send `resolution` + `ratio` for relays
  *   that prefer aspect/tier over pixels.
- * - Reference images → `image_urls` (required by many relays) + `image` fallback.
+ * - Reference images → JSON 仅 `image_urls`（严格中转勿多形状喷发）。
  */
 function buildOpenAiCompatibleImageBody(input: {
   model: string;
@@ -727,16 +731,17 @@ function buildOpenAiCompatibleImageBody(input: {
   return body;
 }
 
-/** Attach i2i refs in the shapes mid-stations commonly accept. */
+/**
+ * OpenAI 兼容 / async 中转：参考图只发 `image_urls`。
+ * 勿再喷 `image` / `images`（Go DisallowUnknownFields 会 400）。
+ */
 function attachOpenAiReferenceFields(
   body: Record<string, unknown>,
   refs: string[],
 ): void {
-  // Primary: image_urls (APIMart / 多数 gpt-image-2 中转)
-  body.image_urls = refs;
-  body.images = refs;
-  // Many relays expect `image` as a string for one ref, array for multi
-  body.image = refs.length === 1 ? refs[0]! : refs;
+  const urls = refs.map((s) => s.trim()).filter(Boolean);
+  if (urls.length === 0) return;
+  body.image_urls = urls;
 }
 
 function mimeToExt(mime: string): string {
@@ -825,13 +830,11 @@ function buildOpenAiEditsForm(input: {
   const refs = input.referenceImages;
   const fileCount = appendOpenAiEditImageFiles(form, refs);
 
-  // Only when no file parts were attached: keep URL aliases for odd relays.
+  // Only when no file parts were attached: URL aliases for odd relays.
   // Never duplicate huge data-URI refs as image_url — that breaks async mid-stations
   // (multipart + base64 form fields → upstream 502).
+  // Lean: only image_urls[] (no parallel image_url).
   if (fileCount === 0) {
-    if (refs.length === 1) {
-      form.append("image_url", refs[0]!);
-    }
     for (const ref of refs) {
       form.append("image_urls[]", ref);
     }
@@ -1992,7 +1995,15 @@ export async function generateImage(
   // Agnes rejects top-level response_format; use return_base64 / extra_body instead.
   // OpenAI-compatible mid-stations: prefer /images/edits with refs, else /generations.
   // Volcengine Seedream / 智谱 CogView: JSON /images/generations.
-  let requestUrl = imageEndpointUrl(baseUrl, "/images/generations");
+  // 高级：原样使用所填提交 URL；简单：根 + /images/generations。
+  const formatId = options.apiFormat ?? "";
+  const urlMode =
+    options.baseUrlMode ??
+    inferApiBaseUrlMode(options.baseUrl, formatId);
+  let requestUrl =
+    urlMode === "advanced"
+      ? resolveApiActionUrl(options.baseUrl, formatId, "advanced")
+      : imageEndpointUrl(baseUrl, "/images/generations");
   let fetchInit: RequestInit;
 
   if (dialect === "zhipu") {

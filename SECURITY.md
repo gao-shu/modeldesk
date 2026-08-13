@@ -18,13 +18,12 @@ ModelDesk 是**本地、单用户**工作台：
 
 ## 请勿暴露到公网
 
-若在宿主机把 Web / Radar 绑到 `0.0.0.0`，或在无反向代理与访问控制的情况下把 Docker 端口映射出去：
+若在宿主机把 Web 绑到 `0.0.0.0`，或在无反向代理与访问控制的情况下把 Docker 端口映射出去：
 
-- 能访问这些端口的人，可能发起探测、列出模型，并用本机已存 Key 触发**付费**上游调用  
-- Radar CORS 默认仅允许 `localhost` / `127.0.0.1`（仅在你接受风险时才设 `CORS_ORIGIN=*`）  
+- 能访问这些端口的人，可能列出模型，并用本机已存 Key 触发**付费**上游调用  
 - **没有登录**：本机或网络可达 ≈ 等同于拥有完整应用权限  
 
-**建议：** Radar 保持 `HOST=127.0.0.1`（代码默认）；只在 `http://127.0.0.1:3300` 打开界面。
+**建议：** 只在 `http://127.0.0.1:3300` 打开界面。
 
 ## MCP / Agent 接入
 
@@ -39,11 +38,12 @@ MVP 工具面：`list_models` / `run_text|image|video|audio|music` / `cancel_run
 
 请确保 MCP 进程与 Web 使用**相同的** `MODELDESK_DATA_DIR`（加密密钥优先用 `{dataDir}/.encryption-secret`），否则 Agent 看不到你在界面里配好的模型与 Key。
 
-## CLI 与 OpenAI 兼容网关
+## CLI 与 Gateway API
 
 `modeldesk` / `modeldesk-gateway`（经 `pnpm install:bins` 安装）是同一 run-core 与密钥库的薄封装。源码环境也可用 `pnpm cli` / `pnpm gateway`。
 
-- 网关默认绑定 **`127.0.0.1:3310`**。勿把 `MODELDESK_GATEWAY_HOST` 设成公网网卡，除非你接受「端口可达就能花 Key」  
+- **默认** Gateway API 挂在 Web/桌面 **`127.0.0.1:3300/v1`**（与 UI 同进程）  
+- 可选无头 `modeldesk-gateway` 默认 **`127.0.0.1:3310`**。勿把绑定改成公网网卡，除非你接受「端口可达就能花 Key」  
 - 可选 `MODELDESK_GATEWAY_TOKEN`（Bearer）仅为本地共享口令，**不是**多租户鉴权  
 - 详见 [docs/external-access.md](./docs/external-access.md)、[apps/cli/README.md](./apps/cli/README.md)、[apps/gateway/README.md](./apps/gateway/README.md)
 

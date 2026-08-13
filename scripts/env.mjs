@@ -9,10 +9,9 @@ export function envTruthy(value) {
 }
 
 /** Child-process env for desktop sidecar. */
-export function withDesktopEnv(base, { dataDir, radarDb } = {}) {
+export function withDesktopEnv(base, { dataDir } = {}) {
   const env = { ...base };
   env.MODELDESK_DESKTOP = "1";
   if (dataDir) env.MODELDESK_DATA_DIR = dataDir;
-  if (radarDb) env.MODELDESK_RADAR_DB = radarDb;
   return env;
 }

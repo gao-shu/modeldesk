@@ -1,0 +1,206 @@
+openapi: 3.1.0
+info:
+  title: ModelDesk Gateway
+  version: 0.2.0
+  description: |
+    Local loopback multimodal facade over ModelDesk run-core.
+    Default: same process as Web/Desktop on :3300.
+    Optional headless: modeldesk-gateway on :3310.
+    Not a multi-tenant SaaS. Prefer bind 127.0.0.1.
+    Stable aliases: llm-default, image-default, video-default, audio-default, music-default.
+servers:
+  - url: http://127.0.0.1:3300
+  - url: http://127.0.0.1:3310
+    description: Optional headless gateway
+security:
+  - bearerAuth: []
+  - {}
+paths:
+  /healthz:
+    get:
+      summary: Liveness
+      security: []
+      responses:
+        "200":
+          description: OK
+  /openapi.yaml:
+    get:
+      summary: This OpenAPI document
+      security: []
+      responses:
+        "200":
+          description: YAML
+  /v1/models:
+    get:
+      summary: List registry models + stable aliases
+      parameters:
+        - name: modality
+          in: query
+          schema:
+            type: string
+            enum: [text, image, video, audio, music]
+      responses:
+        "200":
+          description: >
+            OpenAI-style model list. Registry rows include modality + hasApiKey;
+            alias rows have owned_by=modeldesk-alias.
+  /v1/aliases:
+    get:
+      summary: List stable alias bindings
+      responses:
+        "200":
+          description: Alias map
+    put:
+      summary: Update alias bindings (registry ids)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties:
+                oneOf:
+                  - type: string
+                  - type: "null"
+              example:
+                llm-default: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                image-default: null
+      responses:
+        "200":
+          description: Updated aliases
+  /v1/chat/completions:
+    post:
+      summary: Text chat (stream supported)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [model, messages]
+              properties:
+                model:
+                  type: string
+                  description: Registry id, name, modelId, or llm-default
+                messages:
+                  type: array
+                  items:
+                    type: object
+                temperature:
+                  type: number
+                max_tokens:
+                  type: integer
+                stream:
+                  type: boolean
+      responses:
+        "200":
+          description: Chat completion
+  /v1/images/generations:
+    post:
+      summary: Image generation (OpenAI-shaped data[].url)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MediaGenerate"
+      responses:
+        "200":
+          description: Image result
+  /v1/videos/generations:
+    post:
+      summary: Video generation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MediaGenerate"
+      responses:
+        "200":
+          description: Video result
+  /v1/audio/speech:
+    post:
+      summary: Audio / TTS generation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MediaGenerate"
+      responses:
+        "200":
+          description: Audio result (JSON + artifact URL)
+  /v1/music/generations:
+    post:
+      summary: Music generation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MediaGenerate"
+      responses:
+        "200":
+          description: Music result
+  /v1/modeldesk/run:
+    post:
+      summary: Unified non-text run
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/MediaGenerate"
+                - type: object
+                  properties:
+                    modality:
+                      type: string
+                      enum: [image, video, audio, music]
+      responses:
+        "200":
+          description: Run result
+  /v1/artifacts/{id}:
+    get:
+      summary: Download artifact bytes
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Binary
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Optional. Set MODELDESK_GATEWAY_TOKEN (comma-separated) or TOKENS_FILE.
+  schemas:
+    MediaGenerate:
+      type: object
+      required: [model, prompt]
+      properties:
+        model:
+          type: string
+          description: Registry id / name / modelId / stable alias
+        prompt:
+          type: string
+        input:
+          type: string
+          description: Alias of prompt (audio speech style)
+        params:
+          type: object
+          additionalProperties: true
+        size:
+          type: string
+        voice:
+          type: string

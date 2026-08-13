@@ -215,7 +215,7 @@ function PositionPanel() {
       <ul className="mt-2 list-disc space-y-1.5 pl-5">
         <li>模型台账、Key 加密、连通性测试、多厂商 / 中转适配</li>
         <li>五模态实测与本机产物；同一 run-core 供 Web / CLI / MCP / Gateway</li>
-        <li>桌面安装包；Radar 摸底；细节见「技术 / 接入模型 / 对外调用」</li>
+        <li>可选桌面安装包；细节见「技术 / 接入模型 / 对外调用」</li>
       </ul>
     </Panel>
   );
@@ -248,12 +248,6 @@ function TechPanel() {
           <dt className="text-zinc-400">数据与安全</dt>
           <dd className="mt-0.5 text-zinc-800">
             SQLite（better-sqlite3）· Key / 密钥本地加密
-          </dd>
-        </div>
-        <div>
-          <dt className="text-zinc-400">探测服务</dt>
-          <dd className="mt-0.5 text-zinc-800">
-            Radar API（Fastify）· 连通性 / 目录摸底
           </dd>
         </div>
         <div>

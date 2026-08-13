@@ -81,6 +81,12 @@ export type RunParamField = {
   /** Max audio refs for audioListKey (default 3). */
   audioListMax?: number;
   /**
+   * When true with audioListKey: only show audio under「多参」mode
+   * (e.g. MiniMax H3：音频仅属于 r2va，不可与首帧/首尾帧混用).
+   * Default false：有视觉参考时即可附音频（Seedance）.
+   */
+  audioOnlyInRefsMode?: boolean;
+  /**
    * For image_pair: show「首尾帧」mode (default true).
    * Set false for providers that only support single I2V + multi R2V (e.g. Grok).
    */

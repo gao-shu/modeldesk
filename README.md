@@ -1,10 +1,9 @@
 # ModelDesk
 
-**本地、单用户的多模态 API 工作台。**  
-把自己的 Key 配好，在同一处跑通文 / 图 / 音 / 视 / 乐，结果留在本机——不用在各家控制台之间来回跳。
+**个人本机多业务中心：** 配好自己的 Key，在同一处跑通文 / 图 / 音 / 视 / 乐；业务脚本再经本机 Gateway 稳定调用——数据与密钥都留在你自己的机器上。
 
 ```text
-配置模型 → 按模态实测 → 历史可回看 → 产物可下载
+配置模型 → 按模态实测 → 本机 Gateway / CLI / MCP 给业务调 → 产物可回看
 ```
 
 | 下载 | 地址 |
@@ -38,9 +37,9 @@
 ↓ 下载安装包，本地配 Key 即可开测 → [Gitee（Win）](https://gitee.com/gaoshuteacher/modeldesk/releases/tag/v0.1.0) · [GitHub（全量）](https://github.com/gao-shu/modeldesk/releases/tag/v0.1.0)
 
 > **定位说明**  
-> - 本地单机工具，无需登录  
+> - **个人本机**工具：无登录、无多租户、无配置云同步、不卖 Token  
 > - 默认只监听 `127.0.0.1`，**请勿**把端口暴露到公网（无鉴权 ≈ 别人能花你的 Key）  
-> - 安全说明见 [SECURITY.md](./SECURITY.md)
+> - 路线与任务： [docs/PHASE2.md](./docs/PHASE2.md) · 安全：[SECURITY.md](./SECURITY.md)
 
 ---
 
@@ -58,7 +57,7 @@
 
 **一句话：** 配置一次，界面测、脚本跑、Agent 调，数据都在你自己的机器上。
 
-**后续方向：** 接入本机已启动服务（如 ComfyUI / 本地 OpenAI 兼容口）· 同提示词多模型对比 · 提示词库与测试包 · Agent 工具面加深。
+**后续方向（仍本机）：** 收口 Gateway 多业务调用 · 按需补中转适配 · 远期可接本机 ComfyUI / 对比台等（见 [PHASE2](./docs/PHASE2.md)）。不计划登录 / 公网默认开放 / 团队配置同步。
 
 ---
 
@@ -85,26 +84,38 @@ Windows 数据目录默认：`%LOCALAPPDATA%\ModelDesk\`（可在设置里改）
 ```bash
 cd modeldesk
 pnpm install
-pnpm seed
 cp .env.example apps/web/.env.local   # 按需设置 ENCRYPTION_SECRET 等
-pnpm dev                              # Web + Radar，默认本机回环
+pnpm dev                              # Web，默认本机回环 :3300
 ```
 
 | 服务 | 地址 |
 |------|------|
 | Web | http://127.0.0.1:3300 |
-| Radar | http://127.0.0.1:9800 |
-| 同源代理 | http://127.0.0.1:3300/proxy/radar/* |
 
-Windows 上若端口被 Hyper-V 占用，可改 `PORT` / `MODELDESK_WEB_PORT`。
+Windows 上若端口被占用（`EADDRINUSE`），启动日志会给出中文提示。自查：`netstat -ano | findstr ":3300"`，结束对应 PID，或改 `MODELDESK_WEB_PORT` 后重启。Hyper-V 保留区也可能占端口，同样改端口即可。
+
+### 数据目录
+
+| | 说明 |
+|--|------|
+| 库文件 | `{dataDir}/modeldesk.db` |
+| 还包含 | `artifacts/`、`.encryption-secret` |
+| 开发默认 | 仓库根 `data/` |
+| 桌面默认 | `%LOCALAPPDATA%\ModelDesk\`（macOS/Linux 见下） |
+
+**优先级：** 设置页写入的 `data-location.json` → 环境变量 `MODELDESK_DATA_DIR` → 上表默认。  
+控制文件（记住你改过的路径）：开发在仓库 `.modeldesk/data-location.json`；桌面在 `%LOCALAPPDATA%\ModelDesk\data-location.json`。
+
+**MCP / CLI / 网关：** 须与 Web **同一** `MODELDESK_DATA_DIR`（及同一加密密钥），否则看不到界面里配的模型。详见 [SECURITY.md](./SECURITY.md)、设置页「外部调用」。
+
+桌面其它平台默认根目录：macOS `~/Library/Application Support/ModelDesk`；Linux `~/.local/share/ModelDesk`（或 `$XDG_DATA_HOME/ModelDesk`）。
 
 ### 常用命令
 
 | 命令 | 作用 |
 |------|------|
-| `pnpm dev` | 同时启 Web + Radar |
+| `pnpm dev` | 启动 Web |
 | `pnpm build` | 构建 Web |
-| `pnpm seed` | 导入演示目录数据 |
 | `pnpm smoke` | 冒烟检查 |
 | `pnpm check:oss` | 开源发布前卫生扫描 |
 | `pnpm install:bins` | 安装 `modeldesk` / `modeldesk-mcp` / `modeldesk-gateway`（可加 `-- --add-path`） |
@@ -121,7 +132,7 @@ Windows 上若端口被 Hyper-V 占用，可改 `PORT` / `MODELDESK_WEB_PORT`。
 | 桌面 / Web | 主产品 | — |
 | **CLI** | 脚本、CI | `modeldesk` |
 | **MCP** | Cursor、Claude 等 | `modeldesk-mcp` |
-| **Gateway** | OpenAI 兼容 HTTP（本机） | `modeldesk-gateway` → `http://127.0.0.1:3310` |
+| **Gateway API** | 本机多模态 HTTP（默认挂 Web `:3300/v1`；可选无头 `:3310`） | 开 Desk 即可调；或 `modeldesk-gateway` |
 
 ```bash
 # 桌面安装后一般已写入 PATH；源码环境：
@@ -130,7 +141,8 @@ pnpm install:bins -- --add-path
 modeldesk list
 modeldesk run text --model <注册表ID> --prompt "你好"
 
-modeldesk-gateway   # 仅本机 127.0.0.1
+# 业务 HTTP：默认打 Web http://127.0.0.1:3300/v1 （Desk 开着即可）
+# 可选无头：modeldesk-gateway → :3310
 ```
 
 完整说明：[docs/external-access.md](./docs/external-access.md)。  
@@ -145,21 +157,19 @@ cp .env.docker.example .env.docker   # 修改 ENCRYPTION_SECRET，勿提交
 docker compose --env-file .env.docker up --build -d
 ```
 
-默认宿主机：Web `http://127.0.0.1:3020`，Radar `http://127.0.0.1:9800`。  
+默认宿主机：Web `http://127.0.0.1:3020`。  
 容器内可绑 `0.0.0.0`，**不要**把端口映射到公网。
 
 ---
 
 ## 环境变量（摘要）
 
-模板：[`.env.example`](./.env.example)、[`apps/radar-api/.env.example`](./apps/radar-api/.env.example)。
+模板：[`.env.example`](./.env.example)。
 
 | 变量 | 用途 |
 |------|------|
 | `ENCRYPTION_SECRET` | 加密 SQLite 中的 Key / 对象存储凭据 |
-| `MODELDESK_DATA_DIR` | 数据根目录（库、产物、加密密钥文件） |
-| `RADAR_API_BASE` | Web → Radar 地址（默认 `http://127.0.0.1:9800`） |
-| `HOST` | Radar 绑定（默认 `127.0.0.1`；Docker 用 `0.0.0.0`） |
+| `MODELDESK_DATA_DIR` | 数据根目录（`modeldesk.db`、产物、密钥文件） |
 
 ---
 
@@ -168,7 +178,6 @@ docker compose --env-file .env.docker up --build -d
 ```text
 modeldesk/
 ├── apps/web/          # Next 界面与 run-core
-├── apps/radar-api/    # 探测 / 目录服务
 ├── apps/desktop/      # Tauri 桌面壳
 ├── apps/cli · mcp · gateway
 ├── packages/          # 适配器、模型注册、共享类型等

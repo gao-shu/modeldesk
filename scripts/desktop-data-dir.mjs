@@ -8,7 +8,6 @@ import os from "node:os";
 import path from "node:path";
 
 const APP_DATA_NAME = "ModelDesk";
-const RADAR_DB = "modeldesk-radar.sqlite";
 const LOCATION_FILENAME = "data-location.json";
 
 export function getDefaultDesktopDataDir() {
@@ -80,10 +79,6 @@ export function resolveDataDir() {
   return getDefaultDesktopDataDir();
 }
 
-export function resolveRadarDbPath(dataDir = resolveDataDir()) {
-  return path.join(dataDir, "radar", RADAR_DB);
-}
-
 export function ensureDesktopDataDir(dataDir = resolveDataDir()) {
   fs.mkdirSync(dataDir, { recursive: true });
   for (const sub of [
@@ -92,7 +87,6 @@ export function ensureDesktopDataDir(dataDir = resolveDataDir()) {
     "artifacts/audio",
     "artifacts/music",
     "artifacts/text",
-    "radar",
   ]) {
     fs.mkdirSync(path.join(dataDir, sub), { recursive: true });
   }

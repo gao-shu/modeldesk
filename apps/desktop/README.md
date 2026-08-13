@@ -1,6 +1,6 @@
 # ModelDesk Desktop
 
-Tauri 2 shell around the existing Next + Radar stack (see repo README 「桌面端」).
+Tauri 2 shell around the existing Next stack (see repo README 「桌面端」).
 
 ## Dev
 

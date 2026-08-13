@@ -6,21 +6,18 @@
   "license": "MIT",
   "packageManager": "pnpm@9.15.0",
   "scripts": {
-    "dev": "concurrently -k -n web,radar -c cyan,magenta \"pnpm dev:web\" \"pnpm dev:radar\"",
-    "dev:web": "pnpm --filter @modeldesk/web dev",
-    "dev:radar": "pnpm --filter @modeldesk/radar-api dev",
+    "dev": "pnpm dev:web",
+    "dev:web": "node scripts/run-with-port-hint.mjs --service Web --port 3300 --env-hint MODELDESK_WEB_PORT -- pnpm --filter @modeldesk/web dev",
     "build": "pnpm --filter @modeldesk/web build",
     "lint": "pnpm -r --if-present lint",
-    "seed": "pnpm --filter @modeldesk/radar-api seed",
-    "smoke:radar": "node scripts/radar-smoke.mjs",
     "smoke": "node scripts/smoke-phase1.mjs",
-    "test:radar": "pnpm --filter @modeldesk/radar-api test",
     "check:oss": "node scripts/check-oss.mjs",
     "mcp": "pnpm --filter @modeldesk/mcp start",
     "mcp:smoke": "node scripts/mcp-smoke.mjs",
     "cli": "pnpm --filter @modeldesk/cli start",
     "gateway": "pnpm --filter @modeldesk/gateway start",
     "gateway:smoke": "node scripts/gateway-smoke.mjs",
+    "gateway:accept": "node scripts/gateway-accept.mjs",
     "install:bins": "node scripts/install-agent-bins.mjs",
     "desktop:sidecar": "node scripts/desktop-sidecar.mjs",
     "desktop:dev": "pnpm --filter @modeldesk/desktop dev",
@@ -37,8 +34,5 @@
       "sharp",
       "unrs-resolver"
     ]
-  },
-  "devDependencies": {
-    "concurrently": "^9.2.1"
   }
 }

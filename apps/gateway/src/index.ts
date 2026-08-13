@@ -1,330 +1,77 @@
 /**
- * ModelDesk OpenAI-compatible gateway (loopback by default).
+ * Optional headless ModelDesk Gateway (:3310).
+ * Default path for personal use: Web / Desktop on :3300 (same /v1 contract).
  *
- *   GET  /v1/models
- *   POST /v1/chat/completions   (stream + non-stream)
- *   GET  /healthz
- *
- * Env:
- *   MODELDESK_GATEWAY_HOST   default 127.0.0.1
- *   MODELDESK_GATEWAY_PORT   default 3310
- *   MODELDESK_GATEWAY_TOKEN  optional; if set, require Bearer token
- *   MODELDESK_DATA_DIR       same data dir as Web / MCP
+ * Env: MODELDESK_GATEWAY_HOST / PORT / TOKEN / TOKENS_FILE / MODELDESK_DATA_DIR
  */
 
 import http from "node:http";
-import { randomUUID } from "node:crypto";
-import {
-  getRunModel,
-  listRunModels,
-  runCoreResultToPublic,
-  runText,
-  type RunModelSummary,
-} from "@/lib/server/run-core";
+import { Readable } from "node:stream";
+import { handleGatewayRequest } from "@/lib/server/gateway/app";
 import { ensureDataDirs, getDataDir } from "@/lib/server/paths";
+import { aliasesFilePath } from "@/lib/server/gateway/aliases";
+import { loadGatewayTokens } from "@/lib/server/gateway/auth";
 
 const HOST = (process.env.MODELDESK_GATEWAY_HOST ?? "127.0.0.1").trim();
 const PORT = Number(process.env.MODELDESK_GATEWAY_PORT ?? "3310") || 3310;
-const TOKEN = process.env.MODELDESK_GATEWAY_TOKEN?.trim() || "";
 
 function log(...args: unknown[]) {
   console.error("[modeldesk-gateway]", ...args);
 }
 
-function isMock(m: RunModelSummary): boolean {
-  return (
-    m.provider === "mock" ||
-    (m.baseUrl ?? "").toLowerCase().startsWith("mock://")
-  );
-}
-
-function json(
-  res: http.ServerResponse,
-  status: number,
-  body: unknown,
-): void {
-  const raw = JSON.stringify(body);
-  res.writeHead(status, {
-    "Content-Type": "application/json; charset=utf-8",
-    "Content-Length": Buffer.byteLength(raw),
-  });
-  res.end(raw);
-}
-
-function readBody(req: http.IncomingMessage): Promise<string> {
+function readBody(req: http.IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     req.on("data", (c) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
-    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    req.on("end", () => resolve(Buffer.concat(chunks)));
     req.on("error", reject);
   });
 }
 
-function checkAuth(req: http.IncomingMessage): boolean {
-  if (!TOKEN) return true;
-  const h = req.headers.authorization ?? "";
-  if (h === `Bearer ${TOKEN}`) return true;
-  if (h === TOKEN) return true;
-  return false;
-}
-
-/** Resolve OpenAI `model` field → ModelDesk registry id (text only). */
-export function resolveTextModelRef(model: string): RunModelSummary | null {
-  const direct = getRunModel(model);
-  if (direct && direct.modality === "text" && !isMock(direct)) return direct;
-
-  const all = listRunModels("text").filter((m) => !isMock(m));
-  const matches = all.filter(
-    (m) => m.id === model || m.name === model || m.modelId === model,
-  );
-  if (matches.length === 1) return matches[0]!;
-  return null;
-}
-
-type ChatMessage = { role?: string; content?: unknown };
-
-function messageContentToText(content: unknown): string {
-  if (typeof content === "string") return content;
-  if (Array.isArray(content)) {
-    return content
-      .map((part) => {
-        if (typeof part === "string") return part;
-        if (part && typeof part === "object" && "text" in part) {
-          return String((part as { text?: unknown }).text ?? "");
-        }
-        return "";
-      })
-      .filter(Boolean)
-      .join("");
-  }
-  if (content == null) return "";
-  return String(content);
-}
-
-function messagesToPrompt(messages: ChatMessage[]): string {
-  const parts = messages
-    .map((m) => {
-      const role = (m.role ?? "user").trim() || "user";
-      const text = messageContentToText(m.content).trim();
-      if (!text) return "";
-      return `${role}: ${text}`;
-    })
-    .filter(Boolean);
-  if (parts.length === 1 && parts[0]!.startsWith("user: ")) {
-    return parts[0]!.slice("user: ".length);
-  }
-  return parts.join("\n\n");
-}
-
-function openaiError(
-  res: http.ServerResponse,
-  status: number,
-  message: string,
-  type = "invalid_request_error",
-): void {
-  json(res, status, {
-    error: { message, type, param: null, code: null },
-  });
-}
-
-async function handleModels(res: http.ServerResponse) {
-  const models = listRunModels("text").filter((m) => !isMock(m));
-  json(res, 200, {
-    object: "list",
-    data: models.map((m) => ({
-      id: m.id,
-      object: "model",
-      created: Math.floor(Date.now() / 1000),
-      owned_by: m.provider || "modeldesk",
-      // Hints for humans / clients that show description fields
-      root: m.modelId,
-      name: m.name,
-    })),
-  });
-}
-
-async function handleChatCompletions(
+async function toWebRequest(
   req: http.IncomingMessage,
-  res: http.ServerResponse,
-) {
-  let body: Record<string, unknown>;
-  try {
-    body = JSON.parse(await readBody(req)) as Record<string, unknown>;
-  } catch {
-    openaiError(res, 400, "Invalid JSON body");
-    return;
-  }
-
-  const modelRef = typeof body.model === "string" ? body.model.trim() : "";
-  if (!modelRef) {
-    openaiError(res, 400, "Missing model");
-    return;
-  }
-
-  const resolved = resolveTextModelRef(modelRef);
-  if (!resolved) {
-    openaiError(
-      res,
-      404,
-      `Unknown text model "${modelRef}". Use GET /v1/models (registry id, name, or upstream modelId).`,
-    );
-    return;
-  }
-
-  const messages = Array.isArray(body.messages)
-    ? (body.messages as ChatMessage[])
-    : [];
-  const prompt = messagesToPrompt(messages);
-  if (!prompt.trim()) {
-    openaiError(res, 400, "messages must include non-empty content");
-    return;
-  }
-
-  const temperature =
-    typeof body.temperature === "number" ? body.temperature : null;
-  const maxTokens =
-    typeof body.max_tokens === "number"
-      ? body.max_tokens
-      : typeof body.max_completion_tokens === "number"
-        ? body.max_completion_tokens
-        : null;
-  const stream = body.stream === true;
-  const completionId = `chatcmpl-${randomUUID().replace(/-/g, "").slice(0, 24)}`;
-  const created = Math.floor(Date.now() / 1000);
-
-  if (stream) {
-    res.writeHead(200, {
-      "Content-Type": "text/event-stream; charset=utf-8",
-      "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
-    });
-    const send = (payload: unknown) => {
-      res.write(`data: ${JSON.stringify(payload)}\n\n`);
-    };
-    send({
-      id: completionId,
-      object: "chat.completion.chunk",
-      created,
-      model: resolved.id,
-      choices: [
-        {
-          index: 0,
-          delta: { role: "assistant", content: "" },
-          finish_reason: null,
-        },
-      ],
-    });
-
-    const outcome = await runText({
-      modelId: resolved.id,
-      prompt,
-      temperature,
-      maxTokens,
-      onEvent: (event, data) => {
-        if (event !== "token") return;
-        const text = String((data as { text?: unknown }).text ?? "");
-        if (!text) return;
-        send({
-          id: completionId,
-          object: "chat.completion.chunk",
-          created,
-          model: resolved.id,
-          choices: [
-            { index: 0, delta: { content: text }, finish_reason: null },
-          ],
-        });
-      },
-    });
-
-    if (outcome.kind === "prepare_error") {
-      send({
-        id: completionId,
-        object: "chat.completion.chunk",
-        created,
-        model: resolved.id,
-        choices: [],
-        error: { message: outcome.error, code: outcome.code },
-      });
-      res.write("data: [DONE]\n\n");
-      res.end();
-      return;
+): Promise<Request> {
+  const url = new URL(req.url ?? "/", `http://${HOST}:${PORT}`);
+  const headers = new Headers();
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (value == null) continue;
+    if (Array.isArray(value)) {
+      for (const v of value) headers.append(key, v);
+    } else {
+      headers.set(key, value);
     }
+  }
+  const method = req.method ?? "GET";
+  const hasBody = method !== "GET" && method !== "HEAD";
+  const body = hasBody ? await readBody(req) : undefined;
+  const init: RequestInit = { method, headers };
+  if (body && body.byteLength > 0) {
+    init.body = body;
+  }
+  return new Request(url, init);
+}
 
-    const finish = outcome.result.cancelled
-      ? "stop"
-      : outcome.result.ok
-        ? "stop"
-        : "stop";
-    send({
-      id: completionId,
-      object: "chat.completion.chunk",
-      created,
-      model: resolved.id,
-      choices: [{ index: 0, delta: {}, finish_reason: finish }],
-      usage: {
-        prompt_tokens: outcome.result.inputTokens ?? 0,
-        completion_tokens: outcome.result.outputTokens ?? 0,
-        total_tokens:
-          (outcome.result.inputTokens ?? 0) +
-          (outcome.result.outputTokens ?? 0),
-      },
-    });
-    res.write("data: [DONE]\n\n");
+async function writeWebResponse(
+  res: http.ServerResponse,
+  response: Response,
+): Promise<void> {
+  const headers: Record<string, string> = {};
+  response.headers.forEach((value, key) => {
+    headers[key] = value;
+  });
+  res.writeHead(response.status, headers);
+  if (!response.body) {
     res.end();
-    log("chat.completions stream", {
-      model: resolved.id,
-      ok: outcome.result.ok,
-      latencyMs: outcome.result.latencyMs,
-    });
     return;
   }
-
-  const outcome = await runText({
-    modelId: resolved.id,
-    prompt,
-    temperature,
-    maxTokens,
-  });
-
-  if (outcome.kind === "prepare_error") {
-    openaiError(res, 400, outcome.error);
-    return;
-  }
-
-  const pub = runCoreResultToPublic(outcome);
-  if (!pub.ok) {
-    openaiError(res, 502, pub.error ?? "Upstream run failed");
-    return;
-  }
-
-  json(res, 200, {
-    id: completionId,
-    object: "chat.completion",
-    created,
-    model: resolved.id,
-    choices: [
-      {
-        index: 0,
-        message: { role: "assistant", content: pub.content },
-        finish_reason: "stop",
-      },
-    ],
-    usage: {
-      prompt_tokens: pub.inputTokens ?? 0,
-      completion_tokens: pub.outputTokens ?? 0,
-      total_tokens: (pub.inputTokens ?? 0) + (pub.outputTokens ?? 0),
-    },
-    modeldesk: {
-      runId: pub.runId,
-      jobId: pub.jobId,
-      latencyMs: pub.latencyMs,
-      artifactId: pub.artifactId,
-    },
-  });
-  log("chat.completions", {
-    model: resolved.id,
-    ok: true,
-    latencyMs: pub.latencyMs,
+  const nodeStream = Readable.fromWeb(
+    response.body as import("node:stream/web").ReadableStream,
+  );
+  await new Promise<void>((resolve, reject) => {
+    nodeStream.pipe(res);
+    nodeStream.on("error", reject);
+    res.on("finish", resolve);
+    res.on("error", reject);
   });
 }
 
@@ -336,44 +83,37 @@ async function main() {
   }
 
   ensureDataDirs();
+  const tokens = loadGatewayTokens();
   log("dataDir", getDataDir());
-  log(`listening http://${HOST}:${PORT}  (GET /v1/models, POST /v1/chat/completions)`);
+  log("aliasesFile", aliasesFilePath());
+  log(
+    `auth ${tokens.size > 0 ? `on (${tokens.size} token(s))` : "off (loopback open)"}`,
+  );
+  log(
+    `listening http://${HOST}:${PORT} (optional headless; default API is Web :3300 /v1)`,
+  );
 
   const server = http.createServer((req, res) => {
     void (async () => {
-      const url = new URL(req.url ?? "/", `http://${HOST}:${PORT}`);
-      const path = url.pathname.replace(/\/+$/, "") || "/";
-
-      if (req.method === "GET" && (path === "/healthz" || path === "/health")) {
-        json(res, 200, { ok: true, dataDir: getDataDir() });
-        return;
-      }
-
-      if (!checkAuth(req)) {
-        openaiError(res, 401, "Unauthorized", "auth_error");
-        return;
-      }
-
-      if (req.method === "GET" && path === "/v1/models") {
-        await handleModels(res);
-        return;
-      }
-
-      if (req.method === "POST" && path === "/v1/chat/completions") {
-        await handleChatCompletions(req, res);
-        return;
-      }
-
-      openaiError(res, 404, `Unknown route ${req.method} ${path}`);
+      const request = await toWebRequest(req);
+      const response = await handleGatewayRequest(request);
+      await writeWebResponse(res, response);
     })().catch((err) => {
       log("handler error", err instanceof Error ? err.message : err);
       if (!res.headersSent) {
-        openaiError(
-          res,
-          500,
-          err instanceof Error ? err.message : "Internal error",
-          "server_error",
-        );
+        const raw = JSON.stringify({
+          error: {
+            message: err instanceof Error ? err.message : "Internal error",
+            type: "server_error",
+            param: null,
+            code: null,
+          },
+        });
+        res.writeHead(500, {
+          "Content-Type": "application/json; charset=utf-8",
+          "Content-Length": Buffer.byteLength(raw),
+        });
+        res.end(raw);
       } else {
         try {
           res.end();
