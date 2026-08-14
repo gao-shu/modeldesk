@@ -8,16 +8,30 @@
 git tag v0.1.0 → push
         ↓
 GitHub Actions「Release desktop」
-  ├─ Windows x64  → .exe (NSIS)   ← tag 推送默认只打 Windows
-  ├─ macOS arm64  → .dmg          ← workflow_dispatch 选 macos / all
-  └─ macOS x64    → .dmg
+  ├─ Windows x64  → ModelDesk-{ver}-win-x64-setup.exe   ← tag 推送默认只打 Windows
+  ├─ macOS arm64  → ModelDesk-{ver}-mac-arm64.dmg       ← workflow_dispatch 选 macos / all
+  └─ macOS x64    → ModelDesk-{ver}-mac-x64.dmg
         ↓
 GitHub Release（同 tag）
+  · 正文：下载指南表 + 安装说明 + SHA-256 + CHANGELOG
+  · 附件：安装包 + SHA256SUMS.txt
         ↓
-（若配置了 Secrets）上传到 Gitee 同名 Release
+（若配置了 Secrets）上传到 Gitee 同名 Release（同一套正文与文件名）
 ```
 
 手动重跑时可在 Actions → **Release desktop** → Run workflow 选择 `platforms`：`windows`（默认）/ `macos` / `all`。
+
+## 产物命名与 Release 正文
+
+风格对齐常见开源桌面应用（如下载表、安装说明、sha256）：
+
+| 平台 | 文件名 |
+|------|--------|
+| Windows x64 | `ModelDesk-{ver}-win-x64-setup.exe` |
+| macOS Apple Silicon | `ModelDesk-{ver}-mac-arm64.dmg` |
+| macOS Intel | `ModelDesk-{ver}-mac-x64.dmg` |
+
+发版时由 `scripts/prepare-release-assets.mjs` 重命名产物、生成 `SHA256SUMS.txt` 与 `RELEASE_BODY.md`（含下载指南表）。目前矩阵为 Win + macOS；Linux / Win-ARM 未构建。
 
 ## 第一次配置（约 10 分钟）
 
@@ -86,6 +100,7 @@ node scripts/sync-gitee-release.mjs --tag v0.1.0 --dir ./path/to/installers
 ## 相关文件
 
 - `.github/workflows/release-desktop.yml` — 构建与发布
+- `scripts/prepare-release-assets.mjs` — 统一命名、SHA-256、Release 正文
 - `scripts/sync-gitee-release.mjs` — Gitee API 上传
 - `scripts/build-desktop-runtime.mjs` — 打入安装包的 Web/Node 运行时
 - `apps/desktop/src-tauri/tauri.conf.json` — `nsis` + `dmg`

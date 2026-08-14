@@ -198,7 +198,8 @@ pnpm install
 pnpm desktop:dev
 # 或
 pnpm desktop:build
-# → apps/desktop/src-tauri/target/release/bundle/nsis/ModelDesk_0.1.0_x64-setup.exe
+# → apps/desktop/src-tauri/target/release/bundle/nsis/…
+# 发版流水线会重命名为 ModelDesk-{ver}-win-x64-setup.exe（见 docs/RELEASE.md）
 ```
 
 请勿提交 `engine.zip` / `runtime/`（已 gitignore）。发版流程见 [docs/RELEASE.md](./docs/RELEASE.md)。

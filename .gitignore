@@ -37,6 +37,7 @@ test-ref*.png
 apps/web/public/test-ref.png
 single-run-snapshot.yml
 *.png.bak
+RELEASE_BODY.md
 
 # env — never commit real secrets (examples are allowlisted)
 .env

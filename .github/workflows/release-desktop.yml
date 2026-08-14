@@ -142,9 +142,25 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist-release
+          TAG="${{ needs.meta.outputs.tag }}"
+          VER="${TAG#v}"
+          ARTIFACT="${{ matrix.artifact_name }}"
           find apps/desktop/src-tauri/target -type f \( -name '*.exe' -o -name '*.msi' -o -name '*.dmg' \) \
             -path '*/bundle/*' -print0 2>/dev/null | while IFS= read -r -d '' f; do
-            cp -f "$f" dist-release/
+            case "$ARTIFACT" in
+              windows-x64)
+                cp -f "$f" "dist-release/ModelDesk-${VER}-win-x64-setup.exe"
+                ;;
+              macos-aarch64)
+                cp -f "$f" "dist-release/ModelDesk-${VER}-mac-arm64.dmg"
+                ;;
+              macos-x64)
+                cp -f "$f" "dist-release/ModelDesk-${VER}-mac-x64.dmg"
+                ;;
+              *)
+                cp -f "$f" dist-release/
+                ;;
+            esac
           done
           echo "Collected:"
           ls -lah dist-release
@@ -175,6 +191,28 @@ jobs:
           pattern: modeldesk-*
           merge-multiple: true
 
+      - name: Generate auto release notes
+        id: notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ needs.meta.outputs.tag }}"
+          # Best-effort compare with previous tag; empty file is fine.
+          PREV="$(gh release list --limit 20 --json tagName -q '.[].tagName' | grep -E '^v' | grep -vx "$TAG" | head -n1 || true)"
+          if [ -n "$PREV" ]; then
+            gh api "repos/${{ github.repository }}/releases/generate-notes" \
+              -f tag_name="$TAG" -f previous_tag_name="$PREV" \
+              --jq .body > auto-notes.md || echo "" > auto-notes.md
+          else
+            echo "" > auto-notes.md
+          fi
+          echo "prev=${PREV:-none}"
+
+      - name: Prepare ToonFlow-style assets + body
+        run: node scripts/prepare-release-assets.mjs --tag "${{ needs.meta.outputs.tag }}" --dir release-assets --notes auto-notes.md
+
       - name: List assets
         run: ls -lah release-assets
 
@@ -185,8 +223,12 @@ jobs:
           name: ModelDesk ${{ needs.meta.outputs.tag }}
           draft: false
           prerelease: ${{ contains(needs.meta.outputs.tag, '-') }}
-          generate_release_notes: true
-          files: release-assets/*
+          body_path: RELEASE_BODY.md
+          files: |
+            release-assets/*.exe
+            release-assets/*.dmg
+            release-assets/*.msi
+            release-assets/SHA256SUMS.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -211,6 +253,9 @@ jobs:
           path: release-assets
           pattern: modeldesk-*
           merge-multiple: true
+
+      - name: Prepare ToonFlow-style assets + body
+        run: node scripts/prepare-release-assets.mjs --tag "${{ needs.meta.outputs.tag }}" --dir release-assets
 
       - name: Sync assets to Gitee Release
         env:

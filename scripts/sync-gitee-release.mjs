@@ -31,6 +31,8 @@ function parseArgs(argv) {
   return out;
 }
 
+const SKIP_UPLOAD = new Set(["RELEASE_BODY.md", ".gitkeep"]);
+
 function collectFiles(files, dirs) {
   const list = [];
   for (const f of files) {
@@ -43,6 +45,7 @@ function collectFiles(files, dirs) {
   for (const d of dirs) {
     if (!d || !fs.existsSync(d)) continue;
     for (const name of fs.readdirSync(d)) {
+      if (SKIP_UPLOAD.has(name)) continue;
       const p = path.join(d, name);
       if (fs.statSync(p).isFile()) list.push(path.resolve(p));
     }
@@ -51,10 +54,26 @@ function collectFiles(files, dirs) {
   const seen = new Set();
   return list.filter((p) => {
     const base = path.basename(p);
+    if (SKIP_UPLOAD.has(base)) return false;
     if (seen.has(base)) return false;
     seen.add(base);
     return true;
   });
+}
+
+function resolveReleaseBody(dirs) {
+  const envBody = process.env.GITEE_RELEASE_BODY?.trim();
+  if (envBody) return envBody;
+  const candidates = [
+    path.resolve("RELEASE_BODY.md"),
+    ...dirs.map((d) => path.join(path.resolve(d), "RELEASE_BODY.md")),
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p) && fs.statSync(p).isFile()) {
+      return fs.readFileSync(p, "utf8").trim();
+    }
+  }
+  return "";
 }
 
 async function gitee(pathname, { method = "GET", form, search } = {}) {
@@ -138,6 +157,26 @@ async function createRelease(owner, repo, tag, body) {
   return data;
 }
 
+async function updateReleaseBody(owner, repo, releaseId, body) {
+  const token = process.env.GITEE_TOKEN.trim();
+  const form = new URLSearchParams();
+  form.set("body", body);
+  const url = new URL(`${API}/repos/${owner}/${repo}/releases/${releaseId}`);
+  url.searchParams.set("access_token", token);
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: form,
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    console.warn("[gitee] update release body failed:", text);
+  }
+}
+
 async function listAttachFiles(owner, repo, releaseId) {
   try {
     const data = await gitee(
@@ -218,7 +257,7 @@ async function main() {
   if (!files.length) throw new Error("no artifact files to upload");
 
   const body =
-    process.env.GITEE_RELEASE_BODY?.trim() ||
+    resolveReleaseBody(args.dirs) ||
     [
       `ModelDesk ${tag}`,
       "",
@@ -238,6 +277,7 @@ async function main() {
     release = await createRelease(owner, repo, tag, body);
   } else {
     console.log("[gitee] release exists id=", release.id);
+    await updateReleaseBody(owner, repo, release.id, body);
   }
 
   const releaseId = release.id;
