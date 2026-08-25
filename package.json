@@ -1,7 +1,7 @@
 {
   "name": "modeldesk",
   "private": true,
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "ModelDesk — local single-user multimodal API desk",
   "license": "MIT",
   "packageManager": "pnpm@9.15.0",

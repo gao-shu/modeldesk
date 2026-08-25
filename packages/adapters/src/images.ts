@@ -94,6 +94,14 @@ function resolveImageDialect(
     fmt === "image.openai-compatible" ||
     fmt === "image.mock"
   ) {
+    // 官方方舟 + Seedream 模型误选 OpenAI 兼容时，仍走 Seedream 协议。
+    if (
+      fmt !== "image.mock" &&
+      isVolcengineArkImageBaseUrl(baseUrl) &&
+      model.toLowerCase().includes("seedream")
+    ) {
+      return "seedream";
+    }
     return "openai";
   }
   // Legacy rows without api_format
@@ -936,6 +944,19 @@ function resolveSeedreamEndpointModelId(model: string): string {
   return canonicalizeSeedreamModelId(model);
 }
 
+/** `/v1` / `/v3` on official Ark → `/api/v3` (common mis-entry). */
+function normalizeVolcengineArkApiPath(path: string): string {
+  const p = (path || "").replace(/\/+$/, "") || "";
+  if (!p || p === "/") return "/api/v3";
+  if (p === "/v1" || p.startsWith("/v1/")) {
+    return `/api/v3${p === "/v1" ? "" : p.slice("/v1".length)}`;
+  }
+  if (p === "/v3" || p.startsWith("/v3/")) {
+    return `/api/v3${p === "/v3" ? "" : p.slice("/v3".length)}`;
+  }
+  return p;
+}
+
 /**
  * Official Ark image root is `/api/v3`. Host-only or mistaken `/v1` → fix.
  * Mid-station hosts are left unchanged.
@@ -949,15 +970,38 @@ function ensureVolcengineArkImageRoot(baseUrl: string): string {
   if (!isVolcengineArkImageBaseUrl(u)) return u;
   try {
     const parsed = new URL(u);
-    const path = (parsed.pathname || "").replace(/\/+$/, "") || "";
-    if (!path || path === "/" || path === "/v1") {
-      return `${parsed.origin}/api/v3`;
-    }
+    const path = normalizeVolcengineArkApiPath(
+      (parsed.pathname || "").replace(/\/+$/, ""),
+    );
     return `${parsed.origin}${path}`.replace(/\/+$/, "");
   } catch {
     if (/\/api\/v3$/i.test(u)) return u;
     if (/\/v1$/i.test(u)) return u.replace(/\/v1$/i, "/api/v3");
+    if (/\/v3$/i.test(u)) return u.replace(/\/v3$/i, "/api/v3");
+    if (/\/v1\//i.test(u)) return u.replace(/\/v1\//i, "/api/v3/");
+    if (/\/v3\//i.test(u)) return u.replace(/\/v3\//i, "/api/v3/");
     return `${u}/api/v3`;
+  }
+}
+
+/**
+ * Full request URL safety net for official Ark hosts.
+ * Advanced mode uses the field as-is, so a leftover
+ * `…/v1/images/generations` or `…/v3/images/generations` would 404 without this.
+ */
+function rewriteVolcengineArkImageRequestUrl(url: string): string {
+  const trimmed = url.trim().replace(/\/+$/, "");
+  if (!trimmed || !isVolcengineArkImageBaseUrl(trimmed)) return trimmed;
+  try {
+    const parsed = new URL(trimmed);
+    const path = normalizeVolcengineArkApiPath(
+      (parsed.pathname || "").replace(/\/+$/, ""),
+    );
+    return `${parsed.origin}${path}${parsed.search}`;
+  } catch {
+    return trimmed
+      .replace(/\/v1(?=\/|$)/i, "/api/v3")
+      .replace(/\/v3(?=\/|$)/i, "/api/v3");
   }
 }
 
@@ -1082,7 +1126,7 @@ function friendlyHttpError(status: number, body: string, requestUrl?: string): s
     return `Authentication failed (${status}). Check API key.${where}`;
   }
   if (status === 404) {
-    return `Endpoint not found (404). Check base URL (Seedream 需 …/api/v3)。${
+    return `Endpoint not found (404). Check base URL（即梦官方需 …/api/v3，不是 /v1 或 /v3）。${
       snippet ? ` ${snippet}` : ""
     }${where}`;
   }
@@ -2004,6 +2048,9 @@ export async function generateImage(
     urlMode === "advanced"
       ? resolveApiActionUrl(options.baseUrl, formatId, "advanced")
       : imageEndpointUrl(baseUrl, "/images/generations");
+  if (isVolcengineArkImageBaseUrl(requestUrl)) {
+    requestUrl = rewriteVolcengineArkImageRequestUrl(requestUrl);
+  }
   let fetchInit: RequestInit;
 
   if (dialect === "zhipu") {
@@ -2094,8 +2141,29 @@ export async function generateImage(
       referenceImages: relayRefs,
     });
 
+    const generationsUrl = requestUrl;
+    const editsUrl = (() => {
+      if (urlMode === "advanced") {
+        if (/\/images\/generations$/i.test(generationsUrl)) {
+          return generationsUrl.replace(/\/images\/generations$/i, "/images/edits");
+        }
+        const advanced = resolveApiActionUrl(options.baseUrl, formatId, "advanced");
+        if (/\/images\/generations$/i.test(advanced)) {
+          return advanced.replace(/\/images\/generations$/i, "/images/edits");
+        }
+        return imageEndpointUrl(advanced, "/images/edits");
+      }
+      return imageEndpointUrl(baseUrl, "/images/edits");
+    })();
+    const resolvedGenerationsUrl = isVolcengineArkImageBaseUrl(generationsUrl)
+      ? rewriteVolcengineArkImageRequestUrl(generationsUrl)
+      : generationsUrl;
+    const resolvedEditsUrl = isVolcengineArkImageBaseUrl(editsUrl)
+      ? rewriteVolcengineArkImageRequestUrl(editsUrl)
+      : editsUrl;
+
     const postGenerations = () => {
-      const url = imageEndpointUrl(baseUrl, "/images/generations");
+      const url = resolvedGenerationsUrl;
       emitImageHttpLog(options, url, jsonBody);
       return fetch(url, {
         method: "POST",
@@ -2112,7 +2180,7 @@ export async function generateImage(
       const resolution = isTierSize(options.size)
         ? options.size!.trim().toLowerCase()
         : undefined;
-      const url = imageEndpointUrl(baseUrl, "/images/edits");
+      const url = resolvedEditsUrl;
       emitImageHttpLog(options, url, {
         model: openaiModel,
         prompt: options.prompt,
@@ -2158,16 +2226,16 @@ export async function generateImage(
     let text: string;
 
     if (relayRefs.length > 0) {
-      requestUrl = imageEndpointUrl(baseUrl, "/images/edits");
+      requestUrl = resolvedEditsUrl;
       response = await postEdits().catch(networkErr);
       text = await response.text();
       if (shouldFallbackImageEditsToGenerations(response.status, text)) {
-        requestUrl = imageEndpointUrl(baseUrl, "/images/generations");
+        requestUrl = resolvedGenerationsUrl;
         response = await postGenerations().catch(networkErr);
         text = await response.text();
       }
     } else {
-      requestUrl = imageEndpointUrl(baseUrl, "/images/generations");
+      requestUrl = resolvedGenerationsUrl;
       response = await postGenerations().catch(networkErr);
       text = await response.text();
     }

@@ -73,7 +73,7 @@ export async function PUT(request: Request) {
       return NextResponse.json(
         {
           ok: false,
-          error: "provider 须为 tos | s3 | oss | cos | bos",
+          error: "provider 须为 tos | s3 | qiniu | oss | cos | bos",
         },
         { status: 400 },
       );

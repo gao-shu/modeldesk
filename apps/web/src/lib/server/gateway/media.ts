@@ -18,6 +18,53 @@ function artifactUrl(origin: string, artifactId: string): string {
   return `${origin.replace(/\/+$/, "")}/v1/artifacts/${artifactId}`;
 }
 
+function pushImageRef(out: string[], value: unknown): void {
+  if (typeof value === "string" && value.trim()) {
+    out.push(value.trim());
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) pushImageRef(out, item);
+    return;
+  }
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const obj = value as Record<string, unknown>;
+    if (typeof obj.url === "string") pushImageRef(out, obj.url);
+    else if (typeof obj.b64_json === "string") {
+      const mime =
+        typeof obj.mime === "string" && obj.mime.trim()
+          ? obj.mime.trim()
+          : "image/png";
+      pushImageRef(out, `data:${mime};base64,${obj.b64_json.trim()}`);
+    }
+  }
+}
+
+/** OpenAI-shaped + ModelDesk params → reference URLs / data URIs. */
+export function collectImageRefsFromBody(
+  body: Record<string, unknown>,
+): string[] {
+  const out: string[] = [];
+  pushImageRef(out, body.image);
+  pushImageRef(out, body.images);
+  pushImageRef(out, body.image_url);
+  pushImageRef(out, body.image_urls);
+  const params =
+    body.params && typeof body.params === "object" && !Array.isArray(body.params)
+      ? (body.params as Record<string, unknown>)
+      : null;
+  if (params) {
+    pushImageRef(out, params.image);
+    pushImageRef(out, params.images);
+    pushImageRef(out, params.image_url);
+    pushImageRef(out, params.image_urls);
+    pushImageRef(out, params.reference_images);
+    pushImageRef(out, params.reference_image);
+    pushImageRef(out, params.reference_image_2);
+  }
+  return [...new Set(out)];
+}
+
 function paramsFromBody(body: Record<string, unknown>): Record<string, unknown> {
   const params =
     body.params && typeof body.params === "object" && !Array.isArray(body.params)
@@ -39,6 +86,10 @@ function paramsFromBody(body: Record<string, unknown>): Record<string, unknown> 
     if (body[key] !== undefined && params[key] === undefined) {
       params[key] = body[key];
     }
+  }
+  const refs = collectImageRefsFromBody(body);
+  if (refs.length > 0 && params.reference_images === undefined) {
+    params.reference_images = JSON.stringify(refs);
   }
   return params;
 }
@@ -108,6 +159,8 @@ export async function mediaGenerateResponse(
     modality: Exclude<RunCoreAgentModality, "text">;
     origin: string;
     openaiImages?: boolean;
+    /** POST /v1/images/edits — require at least one reference image. */
+    imageEdits?: boolean;
   },
 ): Promise<Response> {
   const parsed = await readJsonBody(req);
@@ -131,6 +184,16 @@ export async function mediaGenerateResponse(
   }
 
   const params = paramsFromBody(body);
+  if (opts.imageEdits) {
+    const refs = collectImageRefsFromBody(body);
+    if (refs.length === 0) {
+      return openaiErrorResponse(
+        400,
+        "image / image_urls / reference_images required for /v1/images/edits",
+      );
+    }
+  }
+
   const outcome = await runModality(opts.modality, {
     modelId: resolved.id,
     prompt,

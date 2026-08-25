@@ -6,6 +6,7 @@ export type StorageProvider =
   | "none"
   | "tos"
   | "s3"
+  | "qiniu"
   | "oss"
   | "cos"
   | "bos";

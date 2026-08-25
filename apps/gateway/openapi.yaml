@@ -107,6 +107,34 @@ paths:
       responses:
         "200":
           description: Image result
+  /v1/images/edits:
+    post:
+      summary: Image edit / img2img (same run-core as generations; requires reference image)
+      description: >
+        JSON only (not multipart). Pass reference via `image`, `image_urls`,
+        or `params.reference_images` (http(s) URL or data URI). Uses the stored
+        model API key — request Authorization is Gateway token only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/MediaGenerate"
+                - type: object
+                  properties:
+                    image:
+                      description: Single reference URL, data URI, or OpenAI image object
+                    images:
+                      type: array
+                      items: {}
+                    image_urls:
+                      type: array
+                      items:
+                        type: string
+      responses:
+        "200":
+          description: Image result (same shape as /v1/images/generations)
   /v1/videos/generations:
     post:
       summary: Video generation

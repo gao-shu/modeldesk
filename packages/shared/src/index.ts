@@ -326,6 +326,7 @@ export {
   resolveApiBaseUrl,
   toAdvancedApiBaseUrl,
   toSimpleApiBaseUrl,
+  normalizeVolcengineArkBaseUrl,
   type ApiBaseUrlMode,
 } from "./api-base-url";
 

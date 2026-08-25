@@ -23,6 +23,19 @@ export type ModelRegistry = {
   testConfig: (id: string) => Promise<ConfigTestResult>;
 };
 
+/** Reserved for Gateway stable aliases — must not be used as config names. */
+const RESERVED_CONFIG_NAMES = new Set([
+  "llm-default",
+  "image-default",
+  "video-default",
+  "audio-default",
+  "music-default",
+]);
+
+function normalizeConfigName(name: string): string {
+  return name.trim().toLowerCase();
+}
+
 export function createModelRegistry(opts: {
   store: ModelRegistryStore;
   /** Inject host smoke-test; defaults to key-presence check only. */
@@ -38,24 +51,63 @@ export function createModelRegistry(opts: {
     return store.get(id);
   }
 
+  /** Config names are globally unique so Gateway can use them as `model`. */
+  async function assertUniqueConfigName(
+    name: string,
+    excludeId?: string,
+  ): Promise<string> {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      throw new RegistryError("invalid_input", "配置名称不能为空");
+    }
+    const key = normalizeConfigName(trimmed);
+    if (RESERVED_CONFIG_NAMES.has(key)) {
+      throw new RegistryError(
+        "invalid_input",
+        `配置名称「${trimmed}」为系统保留（Gateway 别名），请换一个`,
+      );
+    }
+    const all = await store.list();
+    const clash = all.find(
+      (c) =>
+        c.id !== excludeId && normalizeConfigName(c.name) === key,
+    );
+    if (clash) {
+      throw new RegistryError(
+        "invalid_input",
+        `配置名称「${trimmed}」已存在，请换一个唯一名称`,
+      );
+    }
+    return trimmed;
+  }
+
   async function saveConfig(
     input: ApiConfigInput & { id?: string },
   ): Promise<ApiConfig> {
-    if (input.id) {
-      const updated = await store.update(input.id, input);
+    const name = await assertUniqueConfigName(input.name, input.id);
+    const payload = { ...input, name };
+    if (payload.id) {
+      const updated = await store.update(payload.id, payload);
       if (!updated) {
-        throw new RegistryError("not_found", `Config not found: ${input.id}`);
+        throw new RegistryError("not_found", `Config not found: ${payload.id}`);
       }
       return updated;
     }
-    return store.create(input);
+    return store.create(payload);
   }
 
   async function updateConfig(
     id: string,
     input: ApiConfigUpdate,
   ): Promise<ApiConfig> {
-    const updated = await store.update(id, input);
+    const payload =
+      input.name !== undefined
+        ? {
+            ...input,
+            name: await assertUniqueConfigName(input.name, id),
+          }
+        : input;
+    const updated = await store.update(id, payload);
     if (!updated) {
       throw new RegistryError("not_found", `Config not found: ${id}`);
     }

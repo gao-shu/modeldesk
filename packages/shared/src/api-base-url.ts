@@ -70,6 +70,7 @@ function apiRootPathForFormat(apiFormatId: string): string | null {
     apiFormatId.endsWith(".openai") ||
     apiFormatId.endsWith(".openai-compatible") ||
     apiFormatId.endsWith(".openai-videos") ||
+    apiFormatId.endsWith(".seedance-relay") ||
     apiFormatId.endsWith(".openai-generations")
   ) {
     return DEFAULT_V1_ROOT;
@@ -109,7 +110,11 @@ function apiActionPathForFormat(apiFormatId: string): string | null {
   ) {
     return "/videos/generations";
   }
-  if (apiFormatId === "video.openai-videos" || apiFormatId === "video.agnes") {
+  if (
+    apiFormatId === "video.openai-videos" ||
+    apiFormatId === "video.seedance-relay" ||
+    apiFormatId === "video.agnes"
+  ) {
     return "/videos";
   }
   if (apiFormatId === "audio.minimax") return "/t2a_v2";
@@ -243,22 +248,22 @@ export function toSimpleApiBaseUrl(
   return root || suggested;
 }
 
-/**
- * 切到高级时的默认 Base：等于「简单」模式下自动补全后的完整请求 URL。
- * 之后用户可再改；运行时高级仍按所填原样使用。
- */
-export function toAdvancedApiBaseUrl(
-  baseUrl: string,
-  apiFormatId: string,
-  fallback = "",
-): string {
-  if (formatSupportsChatBaseUrlMode(apiFormatId)) {
-    const seed = baseUrl.trim() || fallback || "https://api.deepseek.com";
-    return resolveChatCompletionsUrl(seed, "simple");
-  }
-  const simple = toSimpleApiBaseUrl(baseUrl, apiFormatId, fallback);
-  return resolveApiActionUrl(simple, apiFormatId, "simple") || simple;
-}
+	/**
+	 * 历史辅助：简单根 → 协议完整 action URL。
+	 * UI 切「高级」时不再自动写入 Base URL（保持用户所填原样）。
+	 */
+	export function toAdvancedApiBaseUrl(
+	  baseUrl: string,
+	  apiFormatId: string,
+	  fallback = "",
+	): string {
+	  if (formatSupportsChatBaseUrlMode(apiFormatId)) {
+	    const seed = baseUrl.trim() || fallback || "https://api.deepseek.com";
+	    return resolveChatCompletionsUrl(seed, "simple");
+	  }
+	  const simple = toSimpleApiBaseUrl(baseUrl, apiFormatId, fallback);
+	  return resolveApiActionUrl(simple, apiFormatId, "simple") || simple;
+	}
 
 export function inferApiBaseUrlMode(
   baseUrl: string,
@@ -298,11 +303,48 @@ export function apiBaseUrlModeFromDefaults(
   return undefined;
 }
 
-/** Preview under the toggle：简单=自动补全后的 URL；高级=原样。 */
-export function previewResolvedApiBaseUrl(
-  baseUrl: string,
-  apiFormatId: string,
-  mode?: ApiBaseUrlMode,
-): string {
-  return resolveApiActionUrl(baseUrl, apiFormatId, mode);
-}
+	/** Preview under the toggle：简单=自动补全后的 URL；高级=原样。 */
+	export function previewResolvedApiBaseUrl(
+	  baseUrl: string,
+	  apiFormatId: string,
+	  mode?: ApiBaseUrlMode,
+	): string {
+	  return resolveApiActionUrl(baseUrl, apiFormatId, mode);
+	}
+
+	/**
+	 * 火山方舟官方域名：纠正常见错填 `/v1`、`/v3`，并折叠已损坏的 `/api/api…/v3`。
+	 * 保留 `/api/v3` 之后的路径（如 `/responses`、`/images/generations`）。
+	 * 非方舟域名原样返回。
+	 */
+	export function normalizeVolcengineArkBaseUrl(baseUrl: string): string {
+	  const trimmed = baseUrl.trim().replace(/\/+$/, "");
+	  if (!trimmed || !/volces\.com|volcengine/i.test(trimmed)) return trimmed;
+
+	  try {
+	    const parsed = new URL(trimmed);
+	    let path = normalizePath(parsed.pathname || "");
+
+	    // …/api/api/api/v3(/…) → …/api/v3(/…)
+	    path = path.replace(/(\/api)+\/v3(?=\/|$)/gi, "/api/v3");
+
+	    if (path === "/v1" || path.startsWith("/v1/")) {
+	      path = `/api/v3${path === "/v1" ? "" : path.slice("/v1".length)}`;
+	    } else if (path === "/v3" || path.startsWith("/v3/")) {
+	      // 仅裸 /v3，避免把已正确的 /api/v3 再写一遍
+	      path = `/api/v3${path === "/v3" ? "" : path.slice("/v3".length)}`;
+	    } else if (!path || path === "/") {
+	      path = "/api/v3";
+	    }
+
+	    // /v1 → /api/v3 后再折叠一次（防 /api/v1 之类边角）
+	    path = path.replace(/(\/api)+\/v3(?=\/|$)/gi, "/api/v3");
+
+	    return `${parsed.origin}${path}${parsed.search}`.replace(/\/+$/, "");
+	  } catch {
+	    return trimmed
+	      .replace(/(\/api)+\/v3(?=\/|$)/gi, "/api/v3")
+	      .replace(/\/v1(?=\/|$)/i, "/api/v3")
+	      .replace(/(?<!\/api)\/v3(?=\/|$)/i, "/api/v3");
+	  }
+	}

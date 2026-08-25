@@ -8,6 +8,8 @@ import { ossConfigFromEnv } from "./oss-config";
 import { createOssStorage } from "./oss";
 import { s3ConfigFromEnv } from "./s3-config";
 import { createS3Storage } from "./s3";
+import { createQiniuStorageFromEnv } from "./qiniu";
+import { qiniuConfigFromEnv } from "./qiniu-config";
 import { createTosObjectStorageFromEnv } from "./tos";
 import type { ObjectStorage, StorageProvider } from "./types";
 
@@ -15,6 +17,7 @@ export const STORAGE_PROVIDERS: readonly StorageProvider[] = [
   "none",
   "tos",
   "s3",
+  "qiniu",
   "oss",
   "cos",
   "bos",
@@ -23,6 +26,7 @@ export const STORAGE_PROVIDERS: readonly StorageProvider[] = [
 export const CLOUD_STORAGE_PROVIDERS = [
   "tos",
   "s3",
+  "qiniu",
   "oss",
   "cos",
   "bos",
@@ -60,6 +64,8 @@ export function providerCredentialsReady(
       return tosConfigFromEnv(env) != null;
     case "s3":
       return s3ConfigFromEnv(env) != null;
+    case "qiniu":
+      return qiniuConfigFromEnv(env) != null;
     case "oss":
       return ossConfigFromEnv(env) != null;
     case "cos":
@@ -135,6 +141,17 @@ export function cloudDriverConfigToEnv(
         S3_FORCE_PATH_STYLE: forcePathStyle,
         S3_SKIP_ACL: skipAcl,
       };
+    case "qiniu":
+      return {
+        QINIU_BUCKET: bucket,
+        QINIU_ACCESS_KEY: accessKey,
+        QINIU_SECRET_KEY: secretKey,
+        ...(region ? { QINIU_REGION: region } : {}),
+        ...(endpoint ? { QINIU_ENDPOINT: endpoint } : {}),
+        ...(publicBaseUrl ? { QINIU_PUBLIC_BASE_URL: publicBaseUrl } : {}),
+        QINIU_FORCE_PATH_STYLE: forcePathStyle,
+        QINIU_SKIP_ACL: skipAcl,
+      };
     case "oss":
       return {
         OSS_BUCKET: bucket,
@@ -209,6 +226,15 @@ export function createObjectStorageForProvider(
     return createUnreadyStorage(
       "s3",
       "STORAGE_PROVIDER=s3 但 S3_BUCKET / S3_ACCESS_KEY / S3_SECRET_KEY 未配齐。",
+    );
+  }
+
+  if (provider === "qiniu") {
+    const qiniu = createQiniuStorageFromEnv(env);
+    if (qiniu) return qiniu;
+    return createUnreadyStorage(
+      "qiniu",
+      "STORAGE_PROVIDER=qiniu 但 QINIU_BUCKET / QINIU_ACCESS_KEY / QINIU_SECRET_KEY 未配齐。",
     );
   }
 

@@ -1,6 +1,6 @@
 [package]
 name = "modeldesk"
-version = "0.2.1"
+version = "0.2.2"
 description = "ModelDesk — local multimodal API desk"
 authors = ["ModelDesk"]
 edition = "2021"

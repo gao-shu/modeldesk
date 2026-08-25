@@ -121,6 +121,11 @@ export class ModelDeskGatewayClient {
     return this.request("POST", "/v1/images/generations", input);
   }
 
+  /** Img2img / edits — requires image | image_urls | params.reference_images. */
+  imagesEdits(input: MediaGenerateInput) {
+    return this.request("POST", "/v1/images/edits", input);
+  }
+
   videosGenerations(input: MediaGenerateInput) {
     return this.request("POST", "/v1/videos/generations", input);
   }

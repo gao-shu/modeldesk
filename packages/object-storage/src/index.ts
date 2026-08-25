@@ -24,6 +24,8 @@ export {
   type CloudStorageProvider,
   type ProviderCredentialStatus,
 } from "./resolve";
+export { createQiniuStorage, createQiniuStorageFromEnv } from "./qiniu";
+export { qiniuConfigFromEnv } from "./qiniu-config";
 export { createTosObjectStorageFromEnv } from "./tos";
 export { createS3Storage } from "./s3";
 export {

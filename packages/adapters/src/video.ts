@@ -563,6 +563,163 @@ function redactUrlValue(v: string): string {
     : v;
 }
 
+const SEEDANCE_RELAY_SIZE: Record<string, Record<string, { w: number; h: number }>> =
+  {
+    "480p": {
+      "16:9": { w: 832, h: 480 },
+      "9:16": { w: 480, h: 832 },
+      "1:1": { w: 640, h: 640 },
+    },
+    "720p": {
+      "16:9": { w: 1280, h: 720 },
+      "9:16": { w: 720, h: 1280 },
+      "1:1": { w: 960, h: 960 },
+    },
+  };
+
+function resolveSeedanceRelayPixelSize(
+  resolution: string | undefined,
+  aspectRatio: string | undefined,
+  explicitSize?: string,
+): string {
+  const explicit = explicitSize?.trim();
+  if (explicit && /^\d+\s*[x×]\s*\d+$/i.test(explicit)) {
+    return explicit.replace(/\s*[x×]\s*/i, "x").toLowerCase();
+  }
+  const tier = resolution?.trim().toLowerCase() === "480p" ? "480p" : "720p";
+  const aspect = aspectRatio?.trim() || "16:9";
+  const sz =
+    SEEDANCE_RELAY_SIZE[tier]?.[aspect] ??
+    SEEDANCE_RELAY_SIZE["720p"]!["16:9"]!;
+  return `${sz.w}x${sz.h}`;
+}
+
+function parseVideoDataUri(s: string): { bytes: Buffer; mime: string } | null {
+  const t = s.trim();
+  const m = /^data:([^;,]+);base64,(.+)$/i.exec(t);
+  if (!m) return null;
+  try {
+    return { mime: m[1]!.trim(), bytes: Buffer.from(m[2]!, "base64") };
+  } catch {
+    return null;
+  }
+}
+
+function videoMimeToExt(mime: string): string {
+  const m = mime.split(";")[0]!.trim().toLowerCase();
+  if (m.includes("png")) return "png";
+  if (m.includes("webp")) return "webp";
+  if (m.includes("gif")) return "gif";
+  return "jpg";
+}
+
+/**
+ * 中转站文档字段是 `input_reference`（URL 或文件）。
+ * 多图：重复 append 同名字段（与 curl -F 多次一致）。
+ */
+function appendSeedanceRelayInputReference(
+  form: FormData,
+  ref: string,
+  logRefs: string[],
+): void {
+  const trimmed = ref.trim();
+  if (!trimmed) return;
+  if (isHttpUrl(trimmed)) {
+    form.append("input_reference", trimmed);
+    logRefs.push(trimmed);
+    return;
+  }
+  const parsed = parseVideoDataUri(trimmed);
+  if (parsed) {
+    const filename = `reference-${logRefs.length}.${videoMimeToExt(parsed.mime)}`;
+    const blob = new Blob([new Uint8Array(parsed.bytes)], {
+      type: parsed.mime,
+    });
+    form.append("input_reference", blob, filename);
+    logRefs.push(`[file ${filename}]`);
+    return;
+  }
+  form.append("input_reference", trimmed);
+  logRefs.push(redactUrlValue(trimmed));
+}
+
+export function buildSeedanceRelayForm(opts: {
+  model: string;
+  prompt: string;
+  seconds: number;
+  size: string;
+  aspectRatio?: string;
+  withAudio?: boolean;
+  referenceImage?: string;
+  referenceImageEnd?: string;
+  referenceImages?: string[];
+}): { form: FormData; logBody: Record<string, unknown> } {
+  const multi = (opts.referenceImages ?? [])
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, 9);
+  const first = opts.referenceImage?.trim();
+  const last = opts.referenceImageEnd?.trim();
+
+  if (multi.length > 0 && (first || last)) {
+    throw new Error(
+      "Seedance 中转：多参图与首帧/首尾帧互斥，请只选一种模式。",
+    );
+  }
+
+  const hasRefs = multi.length > 0 || Boolean(first) || Boolean(last);
+
+  const form = new FormData();
+  form.append("model", opts.model);
+  form.append("prompt", opts.prompt);
+  form.append("seconds", String(opts.seconds));
+  form.append("size", opts.size);
+  form.append("generate_audio", opts.withAudio === true ? "true" : "false");
+  const ratio = opts.aspectRatio?.trim();
+  if (ratio) form.append("aspect_ratio", ratio);
+  // Mid-stations often check this before parsing image parts — put it before
+  // input_reference. Also accept common truthy spellings some parsers use.
+  if (hasRefs) {
+    form.append("confirm_no_human_reference", "true");
+  }
+
+  const logBody: Record<string, unknown> = {
+    model: opts.model,
+    prompt: opts.prompt,
+    seconds: String(opts.seconds),
+    size: opts.size,
+    generate_audio: opts.withAudio === true ? "true" : "false",
+    _multipart: true,
+    ...(ratio ? { aspect_ratio: ratio } : {}),
+    ...(hasRefs ? { confirm_no_human_reference: "true" } : {}),
+  };
+
+  const logRefs: string[] = [];
+  if (multi.length > 0) {
+    for (const ref of multi) {
+      appendSeedanceRelayInputReference(form, ref, logRefs);
+    }
+  } else {
+    if (first) appendSeedanceRelayInputReference(form, first, logRefs);
+    if (last) appendSeedanceRelayInputReference(form, last, logRefs);
+  }
+
+  if (logRefs.length > 0) {
+    logBody.input_reference =
+      logRefs.length === 1 ? logRefs[0] : logRefs;
+  }
+
+  return { form, logBody };
+}
+
+type VideoSubmitPayload =
+  | { mode: "json"; body: Record<string, unknown> }
+  | {
+      mode: "multipart";
+      form: FormData;
+      logBody: Record<string, unknown>;
+    };
+
 /** Redact bulky base64/data-URI fields in HTTP logs. */
 function redactImageFieldsForLog(
   body: Record<string, unknown>,
@@ -691,6 +848,8 @@ export async function generateVideo(
     (!format && isVolcengineArkBaseUrl(baseUrl));
   // 官方 OpenAI Videos：/videos + /videos/{id}/content 取片
   const openaiVideos = format === "video.openai-videos";
+  const seedanceRelay = format === "video.seedance-relay";
+  const openaiVideosProtocol = openaiVideos || seedanceRelay;
   // 中转兼容 / OpenAI Generations：/videos/generations
   const openaiGenerations =
     format === "video.openai-generations" ||
@@ -699,7 +858,7 @@ export async function generateVideo(
 
   const defaultSubmitPath = volcengine
     ? "/contents/generations/tasks"
-    : agnes || openaiVideos
+    : agnes || openaiVideosProtocol
       ? "/videos"
       : "/videos/generations";
   // 高级模式：提交 URL 原样；简单模式：根 + action。轮询仍用 API 根。
@@ -719,7 +878,7 @@ export async function generateVideo(
           ? "metadata.url"
           : grok
             ? "video.url"
-            : openaiVideos
+            : openaiVideosProtocol
               ? "url"
               : "output.url");
 
@@ -735,6 +894,37 @@ export async function generateVideo(
     .filter((s): s is string => Boolean(s))
     .slice(0, 3);
 
+  let submitPayload: VideoSubmitPayload;
+  let seedanceRelayConfirmQuery = false;
+  if (seedanceRelay) {
+    const seconds = Math.max(
+      1,
+      Math.round(options.durationSec ?? 5),
+    );
+    const pixelSize = resolveSeedanceRelayPixelSize(
+      options.resolution,
+      options.aspectRatio,
+      options.size,
+    );
+    const built = buildSeedanceRelayForm({
+      model: options.model,
+      prompt: options.prompt,
+      seconds,
+      size: pixelSize,
+      aspectRatio: options.aspectRatio,
+      withAudio: options.withAudio,
+      referenceImage,
+      referenceImageEnd,
+      referenceImages,
+    });
+    seedanceRelayConfirmQuery =
+      built.logBody.confirm_no_human_reference === "true";
+    submitPayload = {
+      mode: "multipart",
+      form: built.form,
+      logBody: built.logBody,
+    };
+  } else {
   let submitBody: Record<string, unknown>;
   if (volcengine) {
     if (
@@ -905,20 +1095,49 @@ export async function generateVideo(
       if (options.frameRate != null) submitBody.frame_rate = options.frameRate;
     }
   }
+    submitPayload = { mode: "json", body: submitBody };
+  }
 
   const httpLog = {
     url: submitUrl,
-    body: redactImageFieldsForLog({ ...submitBody }),
+    body: redactImageFieldsForLog(
+      submitPayload.mode === "multipart"
+        ? { ...submitPayload.logBody }
+        : { ...submitPayload.body },
+    ),
   };
+  // Some mid-stations only read confirm from query string; keep form field too.
+  const finalSubmitUrl =
+    seedanceRelay && seedanceRelayConfirmQuery
+      ? (() => {
+          try {
+            const u = new URL(submitUrl);
+            u.searchParams.set("confirm_no_human_reference", "true");
+            return u.toString();
+          } catch {
+            const sep = submitUrl.includes("?") ? "&" : "?";
+            return `${submitUrl}${sep}confirm_no_human_reference=true`;
+          }
+        })()
+      : submitUrl;
+  if (finalSubmitUrl !== submitUrl) {
+    httpLog.url = finalSubmitUrl;
+  }
   options.onHttpLog?.(httpLog);
 
-  const submitRes = await fetch(submitUrl, {
+  const submitRes = await fetch(finalSubmitUrl, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${options.apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(submitBody),
+    headers:
+      submitPayload.mode === "multipart"
+        ? { Authorization: `Bearer ${options.apiKey}` }
+        : {
+            Authorization: `Bearer ${options.apiKey}`,
+            "Content-Type": "application/json",
+          },
+    body:
+      submitPayload.mode === "multipart"
+        ? submitPayload.form
+        : JSON.stringify(submitPayload.body),
     signal,
   });
 
@@ -979,7 +1198,7 @@ export async function generateVideo(
       ? "/contents/generations/tasks/{{id}}"
       : zhipu
         ? "/async-result/{{id}}"
-        : agnes || openaiVideos || grok
+        : agnes || openaiVideosProtocol || grok
           ? "/videos/{{id}}"
           : "/videos/generations/{{id}}");
 
@@ -1071,7 +1290,7 @@ export async function generateVideo(
         }
       }
       // Grok 配置 + OpenAI 协议中转：可能把成片放在 url / output.url，或给相对 /content
-      if (!remoteUrl && (grok || openaiVideos)) {
+      if (!remoteUrl && (grok || openaiVideosProtocol)) {
         remoteUrl = String(
           getPath(pollJson, "url") ??
             getPath(pollJson, "output.url") ??
@@ -1082,7 +1301,7 @@ export async function generateVideo(
       // 官方 api.x.ai：video.url 为 https://vidgen.x.ai/...
       // 中转常返回 video_* id + `/v1/videos/{id}/content`（相对路径，需鉴权下载）
       if (
-        (openaiVideos ||
+        (openaiVideosProtocol ||
           looksLikeOpenAiVideoId(pollId) ||
           isApiVideoContentPath(remoteUrl)) &&
         (!remoteUrl || !isHttpUrl(remoteUrl))
@@ -1149,7 +1368,7 @@ export async function generateVideo(
   }
   // OpenAI /videos/{id}/content 需 Bearer；公网 CDN（官方 Grok vidgen）一般不需要
   const downloadHeaders =
-    openaiVideos ||
+    openaiVideosProtocol ||
     looksLikeOpenAiVideoId(pollId) ||
     isApiVideoContentPath(downloadUrl)
       ? { Authorization: `Bearer ${options.apiKey}` }

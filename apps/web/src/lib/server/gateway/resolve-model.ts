@@ -54,10 +54,17 @@ export function resolveModelRef(
   }
 
   const pool = listGatewayModels(expectModality ?? undefined);
+  const refKey = ref.toLowerCase();
   const matches = pool.filter(
-    (m) => m.id === ref || m.name === ref || m.modelId === ref,
+    (m) =>
+      m.id === ref ||
+      m.modelId === ref ||
+      m.name === ref ||
+      m.name.trim().toLowerCase() === refKey,
   );
-  if (matches.length === 1) return matches[0]!;
+  // Dedupe by id (name case variants of the same row).
+  const unique = [...new Map(matches.map((m) => [m.id, m])).values()];
+  if (unique.length === 1) return unique[0]!;
   return null;
 }
 

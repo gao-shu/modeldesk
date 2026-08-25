@@ -14,7 +14,6 @@ import {
   modalityLabel,
   modalityUsesApiFormatPicker,
   previewResolvedApiBaseUrl,
-  toAdvancedApiBaseUrl,
   toSimpleApiBaseUrl,
   type ApiBaseUrlMode,
   type Modality,
@@ -397,12 +396,8 @@ export function ApiConfigForm({
       });
       return;
     }
-    // 高级：默认填入「简单」补全后的完整 URL，之后可再改
-    const nextBase = toAdvancedApiBaseUrl(
-      form.baseUrl,
-      form.apiFormat,
-      fallback || "https://api.deepseek.com",
-    );
+    // 高级：不改写 Base URL，原样发给上游；仅切换模式（可选手动改完整路径）
+    const nextBase = form.baseUrl.trim() || fallback;
     patch({
       baseUrl: nextBase,
       baseUrlMode: "advanced",
@@ -411,7 +406,7 @@ export function ApiConfigForm({
         "advanced",
         nextBase,
         form.modelId,
-        "",
+        form.pollUrl,
         form.baseUrl,
         form.modelId,
       ),
@@ -541,6 +536,11 @@ export function ApiConfigForm({
               nameExample ? `例如：${nameExample}` : "例如：DeepSeek V4 Pro"
             }
           />
+          <span className="mt-1 text-[11px] leading-relaxed text-zinc-500">
+            须全局唯一；外部 Gateway 可用此名称作为{" "}
+            <span className="font-mono">model</span>
+            （密钥只用本机已保存的，忽略请求里的 Key）
+          </span>
         </label>
 
         {modalityUsesApiFormatPicker(form.modality) ? (

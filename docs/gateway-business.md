@@ -34,14 +34,24 @@ curl -s -X PUT http://127.0.0.1:3300/v1/aliases \
 
 ## 4. 业务调用（示例）
 
+`model` 可填：稳定别名、台账 UUID，或**唯一的配置名称**。上游 API Key 只用 Desk 里已保存的；请求里即使带 Key 也不会用来调厂商。
+
 ```bash
 curl -s http://127.0.0.1:3300/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"model":"llm-default","messages":[{"role":"user","content":"……"}]}'
 
+# 或直接用配置名称（须唯一）：
+# -d '{"model":"火山deepseek-v4-flash-ga-260731","messages":[...]}'
+
 curl -s http://127.0.0.1:3300/v1/images/generations \
   -H "Content-Type: application/json" \
   -d '{"model":"image-default","prompt":"……"}'
+
+# 图生图 / 编辑（须带参考图 URL 或 data URI）：
+curl -s http://127.0.0.1:3300/v1/images/edits \
+  -H "Content-Type: application/json" \
+  -d '{"model":"image-default","prompt":"改成水彩风","image":"https://example.com/ref.png"}'
 ```
 
 TypeScript：`@modeldesk/gateway-client`（默认 `baseUrl` → `:3300`）。  

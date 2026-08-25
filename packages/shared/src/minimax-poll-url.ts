@@ -139,6 +139,7 @@ export function defaultPollUrlTemplate(
     case "video.zhipu-cogvideox":
       return `${origin}/api/paas/v4/async-result/{{id}}`;
     case "video.openai-videos":
+    case "video.seedance-relay":
     case "video.agnes":
     case "video.grok":
     case "video.openai-generations":

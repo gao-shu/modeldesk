@@ -77,6 +77,7 @@ async function adapterGenerateVideo(input: VideoGenerateAdapterInput) {
     if (
       apiFormat === "video.volcengine-seedance" ||
       apiFormat === "video.volcengine-wan" ||
+      apiFormat === "video.seedance-relay" ||
       apiFormat === "video.kling"
     ) {
       if (params.with_audio === true || params.with_audio === "true") return true;

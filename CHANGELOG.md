@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/) when tagg
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-08-25
+
+### Added
+
+- 对象存储支持七牛 Kodo（S3 兼容）示例与驱动
+- Seedance 中转 / OpenAI Videos 相关适配与离线 smoke 脚本
+
+### Fixed
+
+- 火山方舟 Base URL 保存时把 `/api/v3` 叠成 `/api/api/…` 的问题
+- 「高级」模式不再自动改写 Base URL
+
+### Changed
+
+- 模型配置、Gateway、视频/图片适配若干兼容与体验调整
+
 ## [0.2.1] - 2026-08-13
 
 ### Changed

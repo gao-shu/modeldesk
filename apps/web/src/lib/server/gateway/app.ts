@@ -239,6 +239,14 @@ export async function handleGatewayRequest(req: Request): Promise<Response> {
       openaiImages: true,
     });
   }
+  if (req.method === "POST" && pathname === "/v1/images/edits") {
+    return mediaGenerateResponse(req, {
+      modality: "image",
+      origin,
+      openaiImages: true,
+      imageEdits: true,
+    });
+  }
   if (req.method === "POST" && pathname === "/v1/videos/generations") {
     return mediaGenerateResponse(req, { modality: "video", origin });
   }

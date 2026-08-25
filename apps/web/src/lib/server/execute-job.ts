@@ -417,7 +417,13 @@ async function runImageJob(input: JobExecParams): Promise<JobExecResult> {
         ? Number(params.n.trim())
         : undefined;
   const referenceImagesRaw = (() => {
-    const fromList = params.reference_images;
+    const fromList = params.reference_images ?? params.image_urls ?? params.images;
+    if (Array.isArray(fromList)) {
+      return fromList
+        .filter((x): x is string => typeof x === "string")
+        .map((x) => x.trim())
+        .filter(Boolean);
+    }
     if (typeof fromList === "string" && fromList.trim()) {
       const raw = fromList.trim();
       if (raw.startsWith("[")) {
@@ -435,9 +441,19 @@ async function runImageJob(input: JobExecParams): Promise<JobExecResult> {
       }
       return [raw];
     }
+    const single =
+      (typeof params.image === "string" && params.image.trim()
+        ? params.image
+        : "") ||
+      (typeof params.image_url === "string" && params.image_url.trim()
+        ? params.image_url
+        : "") ||
+      (typeof params.reference_image === "string"
+        ? params.reference_image
+        : "");
     // Legacy single / dual keys
     return [
-      typeof params.reference_image === "string" ? params.reference_image : "",
+      single,
       typeof params.reference_image_2 === "string"
         ? params.reference_image_2
         : "",

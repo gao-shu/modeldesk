@@ -81,6 +81,7 @@ type StorageConfig = {
 
 const PROVIDER_OPTIONS = [
   { id: "tos", label: "火山 TOS" },
+  { id: "qiniu", label: "七牛 Kodo" },
   { id: "s3", label: "S3 兼容" },
   { id: "oss", label: "阿里云 OSS" },
   { id: "cos", label: "腾讯云 COS" },
@@ -116,6 +117,14 @@ const FIELD_EXAMPLES: Record<
     accessKey: "AKIAxxxxxxxxEXAMPLE",
     secretKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
     publicBaseUrl: "https://my-s3-bucket.s3.amazonaws.com",
+  },
+  qiniu: {
+    bucket: "images-temp",
+    region: "cn-north-1",
+    endpoint: "s3.cn-north-1.qiniucs.com",
+    accessKey: "xxxxxxxxDemoQiniuAccessKey",
+    secretKey: "xxxxxxxxDemoQiniuSecretKeyxxxxxxxx",
+    publicBaseUrl: "http://img.learncom.cn",
   },
   oss: {
     bucket: "my-oss-bucket",
@@ -684,10 +693,12 @@ await md.imagesGenerations({
   const p = provider as ProviderId;
   const examples = FIELD_EXAMPLES[p] ?? FIELD_EXAMPLES.tos;
   const accessKeyLabel = p === "cos" ? "SecretId" : "Access Key";
-  const showRegion = p === "tos" || p === "s3" || p === "oss" || p === "cos";
-  const showEndpoint = p === "tos" || p === "s3" || p === "oss" || p === "bos";
-  const showForcePath = p === "s3";
-  const showSkipAcl = p === "s3" || p === "oss" || p === "cos";
+  const showRegion =
+    p === "tos" || p === "s3" || p === "qiniu" || p === "oss" || p === "cos";
+  const showEndpoint =
+    p === "tos" || p === "s3" || p === "qiniu" || p === "oss" || p === "bos";
+  const showForcePath = p === "s3" || p === "qiniu";
+  const showSkipAcl = p === "s3" || p === "qiniu" || p === "oss" || p === "cos";
 
   return (
     <div>

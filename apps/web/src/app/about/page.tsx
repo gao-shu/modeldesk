@@ -36,6 +36,7 @@ const FIELD_TYPE_LABEL: Record<RunParamField["type"], string> = {
   image: "参考图",
   image_list: "多图",
   image_pair: "图/首尾帧",
+  audio: "音频",
 };
 
 function listFormats(): ApiFormatDef[] {

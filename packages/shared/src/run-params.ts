@@ -666,10 +666,11 @@ export function videoSettingsFromParams(
     };
   }
 
-  // Volcengine Seedance / Wan：prefer aspect; size is informational tier
+  // Volcengine Seedance / Wan / 中转 multipart：prefer aspect; size is WxH tier
   if (
     format === "video.volcengine-seedance" ||
-    format === "video.volcengine-wan"
+    format === "video.volcengine-wan" ||
+    format === "video.seedance-relay"
   ) {
     const tierSize =
       resolution === "480p"

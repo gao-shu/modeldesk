@@ -108,7 +108,7 @@ Full guide: [apps/mcp/README.md](../apps/mcp/README.md)
 ```text
 GET  /v1/models  /v1/aliases  /openapi.yaml  /healthz
 POST /v1/chat/completions
-POST /v1/images/generations | /v1/videos/generations | /v1/audio/speech | /v1/music/generations
+POST /v1/images/generations | /v1/images/edits | /v1/videos/generations | /v1/audio/speech | /v1/music/generations
 GET  /v1/artifacts/:id
 ```
 

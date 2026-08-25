@@ -987,9 +987,17 @@ export function SingleRunPage({ modality }: { modality: Modality }) {
         : {};
 
     if (modality === "video") {
+      const apiFormat =
+        model && typeof model.defaults === "object" && model.defaults
+          ? String(
+              (model.defaults as Record<string, unknown>).api_format ?? "",
+            )
+          : "";
+      const seedanceRelay = apiFormat === "video.seedance-relay";
       const body: Record<string, unknown> = {
         model: modelId,
         prompt,
+        ...(seedanceRelay ? { _multipart: true } : {}),
       };
       if (typeof params.resolution === "string" && params.resolution) {
         body.resolution = params.resolution;
@@ -999,13 +1007,60 @@ export function SingleRunPage({ modality }: { modality: Modality }) {
       }
       if (params.duration_sec != null && params.duration_sec !== "") {
         body.duration_sec = params.duration_sec;
+        if (seedanceRelay) body.seconds = String(params.duration_sec);
       }
       if (params.duration != null && params.duration !== "") {
         body.duration = params.duration;
       }
-      if (params.with_audio != null) body.with_audio = params.with_audio;
+      if (params.with_audio != null) {
+        body.with_audio = params.with_audio;
+        if (seedanceRelay) {
+          body.generate_audio =
+            params.with_audio === true || params.with_audio === "true"
+              ? "true"
+              : "false";
+        }
+      }
+      const refs: string[] = [];
+      if (typeof params.reference_image === "string" && params.reference_image) {
+        refs.push(params.reference_image);
+      }
+      if (
+        typeof params.reference_image_end === "string" &&
+        params.reference_image_end
+      ) {
+        refs.push(params.reference_image_end);
+      }
+      const listRaw = params.reference_images;
+      if (typeof listRaw === "string" && listRaw.trim()) {
+        const raw = listRaw.trim();
+        if (raw.startsWith("[")) {
+          try {
+            const parsed = JSON.parse(raw) as unknown;
+            if (Array.isArray(parsed)) {
+              for (const x of parsed) {
+                if (typeof x === "string" && x.trim()) refs.push(x.trim());
+              }
+            }
+          } catch {
+            refs.push(raw);
+          }
+        } else {
+          refs.push(raw);
+        }
+      } else if (Array.isArray(listRaw)) {
+        for (const x of listRaw) {
+          if (typeof x === "string" && x.trim()) refs.push(x.trim());
+        }
+      }
+      if (refs.length > 0) {
+        body.input_reference = refs.length === 1 ? refs[0] : refs;
+        if (seedanceRelay) body.confirm_no_human_reference = "true";
+      }
       return {
-        url: `${baseUrl || "(unknown)"}/videos/generations`,
+        url: seedanceRelay
+          ? `${baseUrl || "(unknown)"}/videos`
+          : `${baseUrl || "(unknown)"}/videos/generations`,
         body,
       };
     }
@@ -1607,7 +1662,7 @@ export function SingleRunPage({ modality }: { modality: Modality }) {
                                     if (log) setRequestLog(log);
                                   }}
                                 >
-                                  日志
+                                  上游请求
                                 </button>
                               );
                             })()}

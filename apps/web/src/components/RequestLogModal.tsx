@@ -22,6 +22,8 @@ export function RequestLogModal({ log, onClose }: RequestLogModalProps) {
 
   if (!log) return null;
 
+  const isMultipart = log.body._multipart === true;
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
@@ -31,12 +33,20 @@ export function RequestLogModal({ log, onClose }: RequestLogModalProps) {
         className="w-full max-w-2xl max-h-[80vh] overflow-auto rounded-lg border border-zinc-200 bg-white p-5 shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-zinc-900">请求日志</h3>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-zinc-900">
+              上游 API 请求
+            </h3>
+            <p className="mt-0.5 text-[11px] leading-snug text-zinc-500">
+              这是 ModelDesk 服务端发给中转/厂商的真实请求（浏览器 Network
+              里看不到）。
+            </p>
+          </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md px-3 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800"
+            className="shrink-0 rounded-md px-3 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800"
           >
             关闭
           </button>
@@ -45,16 +55,27 @@ export function RequestLogModal({ log, onClose }: RequestLogModalProps) {
         <div className="space-y-3 text-xs">
           <div>
             <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-400">
-              URL
+              Method · URL
             </span>
             <div className="mt-1 break-all rounded border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 font-mono text-zinc-800">
-              {log.url}
+              <span className="text-emerald-700">POST</span> {log.url}
             </div>
           </div>
 
+          {isMultipart ? (
+            <p className="rounded border border-amber-100 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-900">
+              实际 Content-Type 为{" "}
+              <code className="font-mono">multipart/form-data</code>
+              。下方 JSON 是字段摘要（
+              <code className="font-mono">_multipart: true</code>
+              ）；多张参考图会重复同名字段{" "}
+              <code className="font-mono">input_reference</code>。
+            </p>
+          ) : null}
+
           <div>
             <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-400">
-              Body
+              Body{isMultipart ? "（字段摘要）" : ""}
             </span>
             <pre className="mt-1 max-h-96 overflow-auto rounded border border-zinc-200 bg-zinc-50 p-3 font-mono whitespace-pre-wrap text-zinc-800">
               {JSON.stringify(log.body, null, 2)}

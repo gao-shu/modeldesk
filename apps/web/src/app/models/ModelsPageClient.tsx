@@ -13,6 +13,7 @@ import {
   formatSupportsPollUrl,
   getApiFormat,
   inferApiBaseUrlMode,
+  normalizeVolcengineArkBaseUrl,
   resolveApiFormatId,
   type Modality,
 } from "@modeldesk/shared";
@@ -89,7 +90,8 @@ function formFromModel(model: ApiConfigListItem): ApiConfigFormState {
     }
     defaults[k] = v == null ? "" : String(v);
   }
-  const baseUrl = model.baseUrl ?? "";
+  const baseUrlRaw = model.baseUrl ?? "";
+  const baseUrl = normalizeVolcengineArkBaseUrl(baseUrlRaw);
   const pollUrlRaw = model.defaults?.poll_url;
   const baseUrlMode =
     apiBaseUrlModeFromDefaults(model.defaults) ??
@@ -328,12 +330,13 @@ export function ModelsPageClient({
     setError(null);
     setMessage(null);
     try {
+      let nextBaseUrl = normalizeVolcengineArkBaseUrl(form.baseUrl.trim());
       const payload = {
         name: form.name.trim(),
         modality: form.modality,
         capability: form.capability,
         provider: form.provider.trim() || form.presetId || "custom",
-        baseUrl: form.baseUrl.trim() || null,
+        baseUrl: nextBaseUrl || null,
         modelId:
           form.baseUrlMode === "advanced"
             ? form.modelId.trim()
@@ -350,7 +353,7 @@ export function ModelsPageClient({
                   (form.pollUrl ?? "").trim() ||
                   defaultPollUrlTemplate(
                     form.apiFormat,
-                    form.baseUrl,
+                    nextBaseUrl || form.baseUrl,
                     form.modelId,
                   ),
               }

@@ -270,6 +270,14 @@ const REFERENCE_IMAGE_PAIR_GROK: RunParamField = {
   hint: "无参考图 / 首帧 I2V（任意型号 1 张）/ 多参 R2V（仅 1.5，最多 7；prompt 可用 <IMAGE_1>）",
 };
 
+/** Seedance 中转：所有参考图都走 multipart `input_reference`（多图重复同名字段）。 */
+const REFERENCE_IMAGE_PAIR_SEEDANCE_RELAY: RunParamField = {
+  ...REFERENCE_IMAGE_PAIR,
+  listKey: "reference_images",
+  listMax: 9,
+  hint: "无 / 首帧 / 首尾帧 / 多参图 → 均写入 input_reference（多图重复字段）",
+};
+
 /** OpenAI 官方 Videos：仅单张首帧 input_reference。 */
 const REFERENCE_IMAGE_PAIR_OPENAI: RunParamField = {
   key: "reference_image",
@@ -1659,6 +1667,58 @@ export const API_FORMATS: readonly ApiFormatDef[] = [
       RESOLUTION_TIER,
       ASPECT_COMMON,
       { ...REFERENCE_IMAGE_PAIR_OPENAI_COMPAT },
+    ],
+  },
+  {
+    id: "video.seedance-relay",
+    label: "Seedance 中转",
+    hint: "POST /v1/videos multipart · seedance-2.0-mini 等（如 new.xlcsh.top）",
+    modality: "video",
+    tier: "core",
+    suggestedBaseUrl: "https://new.xlcsh.top/v1",
+    apiRootPath: "/v1",
+    apiActionPath: "/videos",
+    suggestedModelId: "seedance-2.0-mini",
+    modelOptions: ["seedance-2.0-mini"],
+    fields: [
+      {
+        key: "duration_sec",
+        label: "时长",
+        type: "select",
+        defaultValue: "5",
+        options: [
+          { value: "5", label: "5 秒" },
+          { value: "10", label: "10 秒" },
+        ],
+        hint: "写入 seconds；mini 常用 5/10（480p）或 5（720p）",
+      },
+      {
+        key: "resolution",
+        label: "分辨率",
+        type: "select",
+        defaultValue: "720p",
+        options: [
+          { value: "480p", label: "480p" },
+          { value: "720p", label: "720p" },
+        ],
+        hint: "映射为 size=宽x高；mini 不支持 1080p",
+      },
+      {
+        ...ASPECT_COMMON,
+        options: [
+          { value: "16:9", label: "16:9" },
+          { value: "9:16", label: "9:16" },
+          { value: "1:1", label: "1:1" },
+        ],
+      },
+      {
+        key: "with_audio",
+        label: "生成声音",
+        type: "boolean",
+        defaultValue: "false",
+        hint: "generate_audio",
+      },
+      { ...REFERENCE_IMAGE_PAIR_SEEDANCE_RELAY },
     ],
   },
   {

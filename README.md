@@ -8,8 +8,8 @@
 
 | 下载 | 地址 |
 |------|------|
-| **Windows 安装包**（推荐国内） | [Gitee · v0.2.1](https://gitee.com/gaoshuteacher/modeldesk/releases/tag/v0.2.1) |
-| **Win / macOS 全量包** | [GitHub · v0.2.1](https://github.com/gao-shu/modeldesk/releases/tag/v0.2.1) |
+| **Windows 安装包**（推荐国内） | [Gitee · v0.2.2](https://gitee.com/gaoshuteacher/modeldesk/releases/tag/v0.2.2) |
+| **Win / macOS 全量包** | [GitHub · v0.2.2](https://github.com/gao-shu/modeldesk/releases/tag/v0.2.2) |
 | **Gitee 源码** | [gaoshuteacher/modeldesk](https://gitee.com/gaoshuteacher/modeldesk) |
 
 > Gitee 单附件约有 **100MB** 上限，发行版目前放 **Windows `.exe`**；macOS `.dmg` 请从 GitHub 下载。
@@ -34,7 +34,7 @@
 
 ![模型配置](./docs/screenshots/models.png)
 
-↓ 下载安装包，本地配 Key 即可开测 → [Gitee（Win）](https://gitee.com/gaoshuteacher/modeldesk/releases/tag/v0.2.1) · [GitHub（全量）](https://github.com/gao-shu/modeldesk/releases/tag/v0.2.1)
+↓ 下载安装包，本地配 Key 即可开测 → [Gitee（Win）](https://gitee.com/gaoshuteacher/modeldesk/releases/tag/v0.2.2) · [GitHub（全量）](https://github.com/gao-shu/modeldesk/releases/tag/v0.2.2)
 
 > **定位说明**  
 > - **个人本机**工具：无登录、无多租户、无配置云同步、不卖 Token  
@@ -65,7 +65,7 @@
 
 完整步骤见 **[5 分钟跑通第一张图](./docs/quickstart-first-image.md)**；图文操作见 **[操作手册](./docs/user-guide.md)**。摘要：
 
-1. 打开 [GitHub](https://github.com/gao-shu/modeldesk/releases/tag/v0.2.1) 或 [Gitee](https://gitee.com/gaoshuteacher/modeldesk/releases/tag/v0.2.1) 发行版，下载对应系统安装包。  
+1. 打开 [GitHub](https://github.com/gao-shu/modeldesk/releases/tag/v0.2.2) 或 [Gitee](https://gitee.com/gaoshuteacher/modeldesk/releases/tag/v0.2.2) 发行版，下载对应系统安装包。  
 2. 安装并启动 **ModelDesk**（首次解压引擎可能需 1～2 分钟）。  
 3. 打开 **模型配置**，填入自己的 API Key 并保存。  
 4. 进入 **图片** 实测跑一次；在 **生成结果 / 历史** 查看。  

@@ -7,6 +7,7 @@ Optional **public temp URL** uploads. Local artifacts stay under `data/artifacts
 | `none` (default) | Pass-through |
 | `tos` | Volcengine (`@modeldesk/tos-storage`) |
 | `s3` | S3-compatible (`@aws-sdk/client-s3`) |
+| `qiniu` | 七牛 Kodo（S3 协议，`QINIU_*`） |
 | `oss` | Alibaba Cloud (`ali-oss`) |
 | `cos` | Tencent Cloud (`cos-nodejs-sdk-v5`) |
 | `bos` | Baidu Cloud (`bce-sdk-js`) |

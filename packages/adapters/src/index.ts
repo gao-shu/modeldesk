@@ -39,6 +39,7 @@ export {
 
 export {
   generateVideo,
+  buildSeedanceRelayForm,
   isAgnesVideoBaseUrl,
   isVolcengineArkBaseUrl,
   isZhipuVideoBaseUrl,

@@ -29,7 +29,7 @@ modeldesk-gateway
 
 ## Endpoints（与 Web 相同）
 
-`/healthz` · `/openapi.yaml` · `/v1/models` · `/v1/aliases` · `/v1/chat/completions` · `/v1/images|videos|music/generations` · `/v1/audio/speech` · `/v1/modeldesk/run` · `/v1/artifacts/:id`
+`/healthz` · `/openapi.yaml` · `/v1/models` · `/v1/aliases` · `/v1/chat/completions` · `/v1/images/generations` · `/v1/images/edits` · `/v1/videos|music/generations` · `/v1/audio/speech` · `/v1/modeldesk/run` · `/v1/artifacts/:id`
 
 Business guide: [docs/gateway-business.md](../../docs/gateway-business.md).
 
