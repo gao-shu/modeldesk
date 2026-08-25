@@ -51,14 +51,15 @@ Repo fallbacks without bins: `pnpm cli` / `pnpm mcp` / `pnpm gateway`.
 
 ## Data directory (must match the UI)
 
-Priority:
+Priority for **MCP / CLI** (agent entrypoints):
 
-1. Settings-persisted `data-location.json` (control dir)
-2. `MODELDESK_DATA_DIR`
-3. Monorepo `./data` when a checkout is detected (`MODELDESK_REPO_ROOT` or cwd)
-4. OS app data `ModelDesk` (e.g. `%LOCALAPPDATA%\ModelDesk` on Windows) when no checkout
+1. **Live Desk** — if `MODELDESK_FOLLOW_DESK` is not `0`, probe `http://127.0.0.1:3300/healthz` (then `:3310`) and use its `dataDir`
+2. `MODELDESK_DATA_DIR` (explicit in MCP JSON — beats desktop `data-location.json`)
+3. Settings-persisted `data-location.json` (control dir)
+4. Monorepo `./data` when a checkout is detected (`MODELDESK_REPO_ROOT` or cwd)
+5. OS app data `ModelDesk` (e.g. `%LOCALAPPDATA%\ModelDesk` on Windows) when no checkout
 
-**Agents should set `MODELDESK_DATA_DIR` to the path shown in Web → Settings** so keys and models match.
+Keep Desk open while using Trae/Cursor MCP so (1) applies. Copied MCP JSON no longer pins a stale `MODELDESK_DATA_DIR`.
 
 Prefer `{dataDir}/.encryption-secret` shared with the UI. Do not set a different `ENCRYPTION_SECRET` only on the agent side.
 
@@ -111,6 +112,8 @@ POST /v1/chat/completions
 POST /v1/images/generations | /v1/images/edits | /v1/videos/generations | /v1/audio/speech | /v1/music/generations
 GET  /v1/artifacts/:id
 ```
+
+图片 / 视频成功时，`data[].url`（及 `modeldesk.artifacts[].url`）**优先返回上游 CDN 地址**；仅当上游未给出公网 URL（例如只回了 base64）时，才回落到本机 `GET /v1/artifacts/:id`。本机仍会落盘一份，供界面与历史使用。
 
 **可选无头：** `modeldesk-gateway` → `:3310`（同一契约，不开 UI 时用）。见 [apps/gateway/README.md](../apps/gateway/README.md)。
 

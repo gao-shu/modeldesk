@@ -18,6 +18,16 @@ function artifactUrl(origin: string, artifactId: string): string {
   return `${origin.replace(/\/+$/, "")}/v1/artifacts/${artifactId}`;
 }
 
+/** Prefer upstream CDN URL for external callers; fall back to local /v1/artifacts. */
+function mediaPublicUrl(
+  origin: string,
+  artifact: { id: string; remoteUrl?: string | null },
+): string {
+  const remote = artifact.remoteUrl?.trim();
+  if (remote && /^https?:\/\//i.test(remote)) return remote;
+  return artifactUrl(origin, artifact.id);
+}
+
 function pushImageRef(out: string[], value: unknown): void {
   if (typeof value === "string" && value.trim()) {
     out.push(value.trim());
@@ -141,7 +151,8 @@ function modeldeskMeta(
       type: a.type,
       mime: a.mime,
       path: a.path,
-      url: artifactUrl(origin, a.id),
+      remoteUrl: a.remoteUrl,
+      url: mediaPublicUrl(origin, a),
     })) ?? null;
   return {
     runId: pub.runId,
@@ -222,7 +233,7 @@ export async function mediaGenerateResponse(
     return jsonResponse(200, {
       created,
       data: (pub.artifacts ?? []).map((a) => ({
-        url: artifactUrl(opts.origin, a.id),
+        url: mediaPublicUrl(opts.origin, a),
         b64_json: null,
       })),
       model: resolved.id,
@@ -237,7 +248,8 @@ export async function mediaGenerateResponse(
     prompt,
     content: pub.content,
     data: (pub.artifacts ?? []).map((a) => ({
-      url: artifactUrl(opts.origin, a.id),
+      url: mediaPublicUrl(opts.origin, a),
+      remoteUrl: a.remoteUrl,
       path: a.path,
       mime: a.mime,
       id: a.id,
@@ -318,7 +330,8 @@ export async function modeldeskRunResponse(
     prompt,
     content: pub.content,
     data: (pub.artifacts ?? []).map((a) => ({
-      url: artifactUrl(opts.origin, a.id),
+      url: mediaPublicUrl(opts.origin, a),
+      remoteUrl: a.remoteUrl,
       path: a.path,
       mime: a.mime,
       id: a.id,

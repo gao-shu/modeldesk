@@ -110,10 +110,11 @@ function mcpShimPath(binDir: string): string | null {
  * Resolve a launch config that GUI MCP hosts can spawn without relying on PATH.
  * Prefer packaged node + mcp.mjs (most reliable on Windows); else absolute shim.
  */
-function resolveMcpLaunch(binDir: string, dataDir: string): McpLaunch {
+function resolveMcpLaunch(binDir: string, _dataDir: string): McpLaunch {
+  // Do not bake MODELDESK_DATA_DIR — MCP follows live Desk (:3300) by default.
   const env: Record<string, string> = {
-    MODELDESK_DATA_DIR: dataDir,
     MODELDESK_DESKTOP: "1",
+    MODELDESK_FOLLOW_DESK: "1",
   };
 
   const engineDir = resolveEngineDir();

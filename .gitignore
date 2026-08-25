@@ -76,6 +76,8 @@ Thumbs.db
 .idea
 .vscode/*
 !.vscode/extensions.json
+.trae/
+.trae/**
 
 # desktop (Tauri) — engine.zip / runtime must never ship in git
 apps/desktop/src-tauri/target/

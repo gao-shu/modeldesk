@@ -34,9 +34,14 @@ const EXTERNAL = [
   "cpu-features",
 ];
 
+/** ESM shim: bundled CJS deps (e.g. tos-crc64-js) still reference __dirname/require. */
 const BANNER =
   "import { createRequire as __mdCreateRequire } from 'node:module';\n" +
-  "const require = __mdCreateRequire(import.meta.url);\n";
+  "import { fileURLToPath as __mdFileURLToPath } from 'node:url';\n" +
+  "import { dirname as __mdDirname } from 'node:path';\n" +
+  "const require = __mdCreateRequire(import.meta.url);\n" +
+  "const __filename = __mdFileURLToPath(import.meta.url);\n" +
+  "const __dirname = __mdDirname(__filename);\n";
 
 function aliasPlugin() {
   return {
@@ -115,15 +120,11 @@ async function main() {
       packages: "bundle",
       external: EXTERNAL,
       plugins: [aliasPlugin()],
+      banner: { js: BANNER },
       logLevel: "warning",
     });
     if (result.errors?.length) {
       throw new Error(`esbuild errors for ${item.name}`);
-    }
-
-    const body = fs.readFileSync(outfile, "utf8");
-    if (!body.includes("__mdCreateRequire")) {
-      fs.writeFileSync(outfile, BANNER + body);
     }
   }
 

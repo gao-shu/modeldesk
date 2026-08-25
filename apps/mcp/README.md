@@ -41,18 +41,18 @@ Successful media runs include `artifact` / `artifacts` with an absolute filesyst
 
 | Mode | Default |
 |------|---------|
-| Dev (checkout detected) | `<repo>/data` (or path from control `data-location.json`) |
-| Override | `MODELDESK_DATA_DIR=/absolute/path` |
-| No checkout / Desktop | OS app-data `ModelDesk` (e.g. `%LOCALAPPDATA%\ModelDesk`) |
+| **Desk running (default)** | MCP probes `http://127.0.0.1:3300/healthz` and uses that `dataDir` (`MODELDESK_FOLLOW_DESK=1`) |
+| Dev / offline | control `data-location.json` → `MODELDESK_DATA_DIR` → repo `./data` or OS app-data |
+| Disable follow | `MODELDESK_FOLLOW_DESK=0` |
 
 **Alignment checklist**
 
-1. In Web → Settings, note the data directory path.  
-2. Put that exact path in MCP `env.MODELDESK_DATA_DIR`.  
-3. Prefer `{dataDir}/.encryption-secret` for both sides.  
-4. Call `list_models` and confirm `dataDir` + `encryption.configured: true`.
+1. Keep Web / Desktop open on `:3300` while using Trae / Cursor MCP.  
+2. Prefer **Settings → 外部调用 → 复制 MCP**（不再写死过期的 `MODELDESK_DATA_DIR`）.  
+3. After updating engine / MCP, **reload MCP** in the IDE.  
+4. `list_models` returns `dataDir` + `dataDirSource` (`live_desk` | `local`) — if `local` and models look wrong, start Desk.
 
-On stderr startup you should see `[modeldesk-mcp] dataDir …` and encryption status.
+On stderr startup you should see `[modeldesk-mcp] dataDir … (live_desk|local)`.
 
 ## Cursor / WorkBuddy / Codex
 

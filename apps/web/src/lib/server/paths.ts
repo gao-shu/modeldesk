@@ -144,12 +144,133 @@ export function writeConfiguredDataDir(dataDir: string | null): void {
 }
 
 /**
+ * Set by `resolveAgentDataDir` when following a live Desk (:3300).
+ * Takes priority over data-location.json / env so MCP/CLI match the running UI.
+ */
+let agentDataDirOverride: string | null = null;
+
+/** Original MODELDESK_DATA_DIR before we overwrite it for live follow. */
+let savedEnvDataDir: string | null | undefined;
+
+export type AgentDataDirSource = "live_desk" | "local";
+
+export type AgentDataDirResult = {
+  dataDir: string;
+  source: AgentDataDirSource;
+};
+
+function followDeskEnabled(): boolean {
+  const raw = process.env.MODELDESK_FOLLOW_DESK?.trim().toLowerCase();
+  if (raw === "0" || raw === "false" || raw === "no" || raw === "off") {
+    return false;
+  }
+  // Default on (unset or any other truthy / empty-except-0).
+  return true;
+}
+
+function rememberOriginalEnvDataDir(): void {
+  if (savedEnvDataDir !== undefined) return;
+  const v = process.env.MODELDESK_DATA_DIR;
+  savedEnvDataDir = v === undefined ? null : v;
+}
+
+function restoreOriginalEnvDataDir(): void {
+  if (savedEnvDataDir === undefined) return;
+  if (savedEnvDataDir === null) {
+    delete process.env.MODELDESK_DATA_DIR;
+  } else {
+    process.env.MODELDESK_DATA_DIR = savedEnvDataDir;
+  }
+}
+
+function applyAgentDataDir(dir: string): string {
+  rememberOriginalEnvDataDir();
+  const abs = normalizeAbsDir(dir);
+  agentDataDirOverride = abs;
+  process.env.MODELDESK_DATA_DIR = abs;
+  return abs;
+}
+
+async function probeLiveDeskDataDir(
+  baseUrl: string,
+  timeoutMs: number,
+): Promise<string | null> {
+  const url = `${baseUrl.replace(/\/+$/, "")}/healthz`;
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      signal: ac.signal,
+      headers: { Accept: "application/json" },
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as { ok?: boolean; dataDir?: unknown };
+    if (!json?.ok || typeof json.dataDir !== "string" || !json.dataDir.trim()) {
+      return null;
+    }
+    return normalizeAbsDir(json.dataDir);
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Prefer the data dir of a running Desk/Gateway on loopback, else local getDataDir().
+ * Call at MCP/CLI startup and again before tools if Desk may have started later.
+ */
+export async function resolveAgentDataDir(opts?: {
+  /** Override probe URLs (default :3300 then :3310). */
+  probeUrls?: string[];
+  timeoutMs?: number;
+}): Promise<AgentDataDirResult> {
+  if (followDeskEnabled()) {
+    const urls =
+      opts?.probeUrls ??
+      [
+        process.env.MODELDESK_FOLLOW_DESK_URL?.trim() ||
+          "http://127.0.0.1:3300",
+        "http://127.0.0.1:3310",
+      ].filter(Boolean);
+    const timeoutMs = opts?.timeoutMs ?? 800;
+    for (const base of urls) {
+      const live = await probeLiveDeskDataDir(base, timeoutMs);
+      if (live) {
+        const dataDir = applyAgentDataDir(live);
+        return { dataDir, source: "live_desk" };
+      }
+    }
+  }
+
+  // Desk unreachable: clear override and restore pre-follow env so local
+  // data-location.json / original MODELDESK_DATA_DIR apply.
+  agentDataDirOverride = null;
+  restoreOriginalEnvDataDir();
+  return { dataDir: getDataDir(), source: "local" };
+}
+
+/**
+ * Re-probe live Desk and return whether dataDir changed (caller should closeDb).
+ */
+export async function refreshAgentDataDir(): Promise<
+  AgentDataDirResult & { changed: boolean }
+> {
+  const before = agentDataDirOverride ?? getDataDir();
+  const next = await resolveAgentDataDir();
+  const changed =
+    path.normalize(before).toLowerCase() !==
+    path.normalize(next.dataDir).toLowerCase();
+  return { ...next, changed };
+}
+
+/**
  * Resolve app data root (`modeldesk.db`, artifacts, `.encryption-secret`).
- * Priority: data-location.json → MODELDESK_DATA_DIR → default.
+ * Priority: live Desk override → MODELDESK_DATA_DIR → data-location.json → default.
  */
 export function getDataDir(): string {
-  const fromFile = readConfiguredDataDir();
-  if (fromFile) return fromFile;
+  if (agentDataDirOverride) return agentDataDirOverride;
 
   const fromEnv = process.env.MODELDESK_DATA_DIR?.trim();
   if (fromEnv) {
@@ -157,6 +278,9 @@ export function getDataDir(): string {
       ? path.normalize(fromEnv)
       : path.resolve(process.cwd(), fromEnv);
   }
+
+  const fromFile = readConfiguredDataDir();
+  if (fromFile) return fromFile;
 
   return getDefaultDataDir();
 }

@@ -339,8 +339,25 @@ export type RunCoreArtifactPublic = {
   /** Absolute filesystem path under the data dir (for agents / CLI). */
   path: string | null;
   relativeUri: string | null;
+  /** Local desk URL (`/api/artifacts/:id`). */
   url: string;
+  /** Upstream CDN / provider URL when the adapter preserved one. */
+  remoteUrl: string | null;
 };
+
+function remoteUrlFromArtifactMeta(metaJson: string | null | undefined): string | null {
+  if (!metaJson?.trim()) return null;
+  try {
+    const meta = JSON.parse(metaJson) as unknown;
+    if (!meta || typeof meta !== "object" || Array.isArray(meta)) return null;
+    const raw = (meta as Record<string, unknown>).remoteUrl;
+    if (typeof raw !== "string") return null;
+    const url = raw.trim();
+    return /^https?:\/\//i.test(url) ? url : null;
+  } catch {
+    return null;
+  }
+}
 
 function toArtifactPublic(id: string): RunCoreArtifactPublic {
   const row = getArtifact(id);
@@ -352,6 +369,7 @@ function toArtifactPublic(id: string): RunCoreArtifactPublic {
       path: null,
       relativeUri: null,
       url: `/api/artifacts/${id}`,
+      remoteUrl: null,
     };
   }
   let abs: string | null = null;
@@ -368,6 +386,7 @@ function toArtifactPublic(id: string): RunCoreArtifactPublic {
     path: abs,
     relativeUri: row.uri,
     url: `/api/artifacts/${row.id}`,
+    remoteUrl: remoteUrlFromArtifactMeta(row.meta_json),
   };
 }
 

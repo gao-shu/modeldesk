@@ -997,8 +997,10 @@ await md.imagesGenerations({
             <p className="mt-2 text-sm text-emerald-800">{agentMessage}</p>
           ) : null}
           <p className="mt-2 text-sm text-zinc-500">
-            MCP 配置已使用绝对路径 + 当前数据目录，不依赖 PATH。粘贴到 WorkBuddy /
-            Cursor（JSON）或 Codex（TOML）即可。
+            MCP 使用绝对路径启动，默认跟随本机已打开的 Desk（
+            <span className="font-mono text-xs">:3300/healthz</span>{" "}
+            的数据目录），与界面模型一致。请保持 Desk 开着；粘贴到 Trae / Cursor /
+            WorkBuddy（JSON）或 Codex（TOML）。改完后请在编辑器里重载 MCP。
           </p>
           {!status?.agentBins?.canInstall ? (
             <p className="mt-2 text-sm text-zinc-500">

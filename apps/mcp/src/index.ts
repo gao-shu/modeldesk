@@ -26,15 +26,52 @@ import {
   type RunPreparedInfo,
   type RunSingleModelInput,
 } from "@/lib/server/run-core";
-import { ensureDataDirs, getDataDir } from "@/lib/server/paths";
+import {
+  ensureDataDirs,
+  getDataDir,
+  refreshAgentDataDir,
+  resolveAgentDataDir,
+  type AgentDataDirSource,
+} from "@/lib/server/paths";
+import { resolveModelRef } from "@/lib/server/gateway/resolve-model";
+import { closeDb } from "@/lib/server/db";
 
 function log(...args: unknown[]) {
   console.error("[modeldesk-mcp]", ...args);
 }
 
+/** Last resolveAgentDataDir source (for list_models). */
+let dataDirSource: AgentDataDirSource = "local";
+
+/** Re-follow :3300 before tools so Trae matches the Desk that is open now. */
+async function syncDataDirFromDesk(): Promise<void> {
+  const result = await refreshAgentDataDir();
+  dataDirSource = result.source;
+  if (result.changed) {
+    closeDb();
+    ensureDataDirs();
+    log("dataDir switched to", result.dataDir, `(${result.source})`);
+  }
+}
+
+function resolveRunModelId(
+  modelRef: string,
+  expectModality: RunCoreAgentModality,
+): { ok: true; modelId: string } | { ok: false; error: string } {
+  const resolved = resolveModelRef(modelRef, expectModality);
+  if (!resolved) {
+    return {
+      ok: false,
+      error: `Unknown ${expectModality} model "${modelRef}". Use list_models (registry UUID or unique config name).`,
+    };
+  }
+  return { ok: true, modelId: resolved.id };
+}
+
 function isMockModel(m: { provider: string; baseUrl: string | null }): boolean {
   return (
-    m.provider === "mock" || (m.baseUrl ?? "").toLowerCase().startsWith("mock://")
+    m.provider === "mock" ||
+    (m.baseUrl ?? "").toLowerCase().startsWith("mock://")
   );
 }
 
@@ -98,6 +135,7 @@ async function runTracked(
   meta: Record<string, unknown>,
   fn: (onRunId: (runId: string) => void) => Promise<RunCoreOutcome>,
 ) {
+  await syncDataDirFromDesk();
   log(label, meta);
   let runId: string | null = null;
   try {
@@ -118,12 +156,23 @@ async function runTracked(
     }
     return {
       content: [{ type: "text" as const, text: outcomeToText(outcome) }],
-      isError:
-        outcome.kind === "prepare_error" ? true : !outcome.result.ok,
+      isError: outcome.kind === "prepare_error" ? true : !outcome.result.ok,
     };
   } finally {
     untrack(runId);
   }
+}
+
+function modelResolveError(error: string) {
+  return {
+    content: [
+      {
+        type: "text" as const,
+        text: JSON.stringify({ ok: false, error }, null, 2),
+      },
+    ],
+    isError: true as const,
+  };
 }
 
 const modalitySchema = z.enum(["text", "image", "video", "audio", "music"]);
@@ -136,19 +185,26 @@ function createServer(): McpServer {
 
   server.tool(
     "list_models",
-    "List ModelDesk-registered models for agent tools (text/image/video/audio/music). Same local DB as the Web UI.",
+    "List ModelDesk-registered models for agent tools (text/image/video/audio/music). Same local DB as the Web UI when Desk is running (follows :3300 dataDir).",
     {
       modality: modalitySchema
         .optional()
         .describe("Optional filter by modality"),
     },
     async ({ modality }) => {
+      await syncDataDirFromDesk();
       const models = listRunModelsForAgent(
         modality as RunCoreAgentModality | undefined,
       ).filter((m) => !isMockModel(m));
       const enc = getEncryptionSecretStatus();
+      const dataDir = getDataDir();
       const payload = {
-        dataDir: getDataDir(),
+        dataDir,
+        dataDirSource,
+        hint:
+          dataDirSource === "live_desk"
+            ? "Using dataDir from running Desk (:3300/:3310 healthz)."
+            : "Desk not reached — using local data-location / MODELDESK_DATA_DIR. Start Desk if models look wrong.",
         encryption: {
           configured: enc.configured,
           source: enc.source,
@@ -214,144 +270,193 @@ function createServer(): McpServer {
 
   server.tool(
     "run_text",
-    "Run a text (chat) model configured in ModelDesk. modelId is the registry UUID from list_models.",
+    "Run a text (chat) model. modelId: registry UUID or unique config name from list_models.",
     {
-      modelId: z.string().min(1).describe("ModelDesk model config id"),
+      modelId: z
+        .string()
+        .min(1)
+        .describe("Registry UUID or unique config name from list_models"),
       prompt: z.string().min(1).describe("User prompt"),
       temperature: z.number().min(0).max(2).optional(),
       maxTokens: z.number().int().min(1).max(128_000).optional(),
     },
-    async ({ modelId, prompt, temperature, maxTokens }) =>
-      runTracked("run_text", { modelId, promptLen: prompt.length }, (onRunId) =>
-        runText(
-          withAbortTracking(
-            {
-              modelId,
-              prompt,
-              temperature: temperature ?? null,
-              maxTokens: maxTokens ?? null,
-            },
-            onRunId,
+    async ({ modelId, prompt, temperature, maxTokens }) => {
+      const resolved = resolveRunModelId(modelId, "text");
+      if (!resolved.ok) return modelResolveError(resolved.error);
+      return runTracked(
+        "run_text",
+        { modelId: resolved.modelId, promptLen: prompt.length },
+        (onRunId) =>
+          runText(
+            withAbortTracking(
+              {
+                modelId: resolved.modelId,
+                prompt,
+                temperature: temperature ?? null,
+                maxTokens: maxTokens ?? null,
+              },
+              onRunId,
+            ),
           ),
-        ),
-      ),
+      );
+    },
   );
 
   server.tool(
     "run_image",
-    "Run an image model. Optional params mirror UI (size, ratio, quality, reference_images, …). Result includes artifact.path (absolute).",
+    "Run an image model. modelId: registry UUID or unique config name. Optional params mirror UI.",
     {
-      modelId: z.string().min(1).describe("ModelDesk model config id"),
+      modelId: z
+        .string()
+        .min(1)
+        .describe("Registry UUID or unique config name from list_models"),
       prompt: z.string().min(1).describe("Image prompt"),
       params: z
         .record(z.unknown())
         .optional()
-        .describe("Optional run params (size, ratio, quality, reference_images, …)"),
-    },
-    async ({ modelId, prompt, params }) =>
-      runTracked("run_image", { modelId, promptLen: prompt.length }, (onRunId) =>
-        runImage(
-          withAbortTracking(
-            {
-              modelId,
-              prompt,
-              params: params ?? null,
-            },
-            onRunId,
-          ),
+        .describe(
+          "Optional run params (size, ratio, quality, reference_images, …)",
         ),
-      ),
+    },
+    async ({ modelId, prompt, params }) => {
+      const resolved = resolveRunModelId(modelId, "image");
+      if (!resolved.ok) return modelResolveError(resolved.error);
+      return runTracked(
+        "run_image",
+        { modelId: resolved.modelId, promptLen: prompt.length },
+        (onRunId) =>
+          runImage(
+            withAbortTracking(
+              {
+                modelId: resolved.modelId,
+                prompt,
+                params: params ?? null,
+              },
+              onRunId,
+            ),
+          ),
+      );
+    },
   );
 
   server.tool(
     "run_video",
-    "Run a video model. Optional params mirror UI (duration, ratio, reference images / image_pair, …). Result includes artifact.path.",
+    "Run a video model. modelId: registry UUID or unique config name. Optional params mirror UI.",
     {
-      modelId: z.string().min(1).describe("ModelDesk model config id"),
+      modelId: z
+        .string()
+        .min(1)
+        .describe("Registry UUID or unique config name from list_models"),
       prompt: z.string().min(1).describe("Video prompt"),
       params: z
         .record(z.unknown())
         .optional()
         .describe("Optional run params mirroring the video UI"),
     },
-    async ({ modelId, prompt, params }) =>
-      runTracked("run_video", { modelId, promptLen: prompt.length }, (onRunId) =>
-        runVideo(
-          withAbortTracking(
-            {
-              modelId,
-              prompt,
-              params: params ?? null,
-            },
-            onRunId,
+    async ({ modelId, prompt, params }) => {
+      const resolved = resolveRunModelId(modelId, "video");
+      if (!resolved.ok) return modelResolveError(resolved.error);
+      return runTracked(
+        "run_video",
+        { modelId: resolved.modelId, promptLen: prompt.length },
+        (onRunId) =>
+          runVideo(
+            withAbortTracking(
+              {
+                modelId: resolved.modelId,
+                prompt,
+                params: params ?? null,
+              },
+              onRunId,
+            ),
           ),
-        ),
-      ),
+      );
+    },
   );
 
   server.tool(
     "run_audio",
-    "Run an audio (speech/TTS) model. Optional params mirror UI. Result includes artifact.path when audio is saved.",
+    "Run an audio (speech/TTS) model. modelId: registry UUID or unique config name.",
     {
-      modelId: z.string().min(1).describe("ModelDesk model config id"),
+      modelId: z
+        .string()
+        .min(1)
+        .describe("Registry UUID or unique config name from list_models"),
       prompt: z.string().min(1).describe("Audio / TTS prompt or script"),
       params: z
         .record(z.unknown())
         .optional()
         .describe("Optional run params mirroring the audio UI"),
     },
-    async ({ modelId, prompt, params }) =>
-      runTracked("run_audio", { modelId, promptLen: prompt.length }, (onRunId) =>
-        runAudio(
-          withAbortTracking(
-            {
-              modelId,
-              prompt,
-              params: params ?? null,
-            },
-            onRunId,
+    async ({ modelId, prompt, params }) => {
+      const resolved = resolveRunModelId(modelId, "audio");
+      if (!resolved.ok) return modelResolveError(resolved.error);
+      return runTracked(
+        "run_audio",
+        { modelId: resolved.modelId, promptLen: prompt.length },
+        (onRunId) =>
+          runAudio(
+            withAbortTracking(
+              {
+                modelId: resolved.modelId,
+                prompt,
+                params: params ?? null,
+              },
+              onRunId,
+            ),
           ),
-        ),
-      ),
+      );
+    },
   );
 
   server.tool(
     "run_music",
-    "Run a music model. Optional params mirror UI. Result includes artifact.path when audio is saved.",
+    "Run a music model. modelId: registry UUID or unique config name.",
     {
-      modelId: z.string().min(1).describe("ModelDesk model config id"),
+      modelId: z
+        .string()
+        .min(1)
+        .describe("Registry UUID or unique config name from list_models"),
       prompt: z.string().min(1).describe("Music prompt"),
       params: z
         .record(z.unknown())
         .optional()
         .describe("Optional run params mirroring the music UI"),
     },
-    async ({ modelId, prompt, params }) =>
-      runTracked("run_music", { modelId, promptLen: prompt.length }, (onRunId) =>
-        runMusic(
-          withAbortTracking(
-            {
-              modelId,
-              prompt,
-              params: params ?? null,
-            },
-            onRunId,
+    async ({ modelId, prompt, params }) => {
+      const resolved = resolveRunModelId(modelId, "music");
+      if (!resolved.ok) return modelResolveError(resolved.error);
+      return runTracked(
+        "run_music",
+        { modelId: resolved.modelId, promptLen: prompt.length },
+        (onRunId) =>
+          runMusic(
+            withAbortTracking(
+              {
+                modelId: resolved.modelId,
+                prompt,
+                params: params ?? null,
+              },
+              onRunId,
+            ),
           ),
-        ),
-      ),
+      );
+    },
   );
 
   return server;
 }
 
 async function main() {
+  const resolved = await resolveAgentDataDir();
+  dataDirSource = resolved.source;
+  closeDb();
   ensureDataDirs();
   const enc = getEncryptionSecretStatus();
-  log("dataDir", getDataDir());
+  log("dataDir", getDataDir(), `(${resolved.source})`);
   log("encryption", {
     configured: enc.configured,
     source: enc.source,
-    // path only — never print the secret
     filePath: enc.source === "file" || !enc.configured ? enc.filePath : "(env)",
   });
   if (!enc.configured) {
