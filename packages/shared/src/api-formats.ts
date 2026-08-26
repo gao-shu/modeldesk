@@ -170,9 +170,64 @@ const DURATION_COMPAT_VIDEO: RunParamField = {
   hint: "写入 duration（秒）；勿与 Agnes 帧数混用",
 };
 
+/** Agnes Video 2.5 / 2.5 Flash：官方 seconds 字符串 4–12。 */
+const DURATION_AGNES_25: RunParamField = {
+  key: "duration_sec",
+  label: "时长",
+  type: "select",
+  defaultValue: "5",
+  options: [
+    { value: "4", label: "4 秒" },
+    { value: "5", label: "5 秒" },
+    { value: "6", label: "6 秒" },
+    { value: "7", label: "7 秒" },
+    { value: "8", label: "8 秒" },
+    { value: "9", label: "9 秒" },
+    { value: "10", label: "10 秒" },
+    { value: "11", label: "11 秒" },
+    { value: "12", label: "12 秒" },
+  ],
+  hint: "写入官方 seconds（字符串）；Flash 支持 4–12 秒",
+};
+
+const ASPECT_AGNES_25: RunParamField = {
+  key: "aspect_ratio",
+  label: "画幅",
+  type: "select",
+  defaultValue: "16:9",
+  options: [
+    { value: "21:9", label: "21:9 超宽" },
+    { value: "16:9", label: "16:9 横屏" },
+    { value: "4:3", label: "4:3" },
+    { value: "1:1", label: "1:1 方形" },
+    { value: "3:4", label: "3:4" },
+    { value: "9:16", label: "9:16 竖屏" },
+  ],
+  hint: "输出像素由画幅 + 分辨率档位共同决定",
+};
+
+/** Agnes Video 2.5 / Flash：官方 size 枚举（Flash 仅 720P）。 */
+const RESOLUTION_AGNES_25: RunParamField = {
+  key: "resolution",
+  label: "分辨率",
+  type: "select",
+  defaultValue: "720P",
+  options: [
+    { value: "720P", label: "720P" },
+    { value: "960P", label: "960P" },
+    { value: "2K", label: "2K" },
+  ],
+  hint: "写入官方 size；Flash 固定 720P",
+};
+
+const RESOLUTION_AGNES_25_FLASH: RunParamField = {
+  ...RESOLUTION_AGNES_25,
+  options: [{ value: "720P", label: "720P（Flash 固定）" }],
+};
+
 const RESOLUTION_TIER: RunParamField = {
   key: "resolution",
-  label: "分辨率档位",
+  label: "分辨率",
   type: "select",
   defaultValue: "720p",
   options: [
@@ -305,6 +360,16 @@ const REFERENCE_IMAGE_PAIR_OPENAI_COMPAT: RunParamField = {
   allowPair: false,
   refModeLabel: "首帧",
   hint: "无 / 首帧（image.url）/ 多参考（reference_images；视上游是否支持）",
+};
+
+/** Agnes Video 2.5 Flash：无→text；首/尾帧→keyframe；多参→reference（images≤5 + audios）。 */
+const REFERENCE_IMAGE_PAIR_AGNES_25_FLASH: RunParamField = {
+  ...REFERENCE_IMAGE_PAIR,
+  listKey: "reference_images",
+  listMax: 5,
+  audioListKey: "reference_audios",
+  audioListMax: 3,
+  hint: "无=文生；首帧/首尾帧=首尾帧模式；多参=参考图（≤5）+ 可选音频。提交时自动推断官方 mode",
 };
 
 const AUDIO_SPEED: RunParamField = {
@@ -1527,6 +1592,27 @@ export const API_FORMATS: readonly ApiFormatDef[] = [
     ],
   },
   {
+    id: "video.agnes-25-flash",
+    label: "Agnes 2.5 Flash",
+    hint: "https://apihub.agnes-ai.com/v1 · 2.5 Flash（mode/seconds/720P，/agnesapi 轮询）",
+    modality: "video",
+    tier: "core",
+    suggestedBaseUrl: "https://apihub.agnes-ai.com/v1",
+    apiRootPath: "/v1",
+    apiActionPath: "/videos",
+    suggestedModelId: "agnes-video-2.5-flash",
+    modelOptions: ["agnes-video-2.5-flash"],
+    modelOptionLabels: {
+      "agnes-video-2.5-flash": "agnes-video-2.5-flash（限时免费）",
+    },
+    fields: [
+      DURATION_AGNES_25,
+      RESOLUTION_AGNES_25_FLASH,
+      ASPECT_AGNES_25,
+      REFERENCE_IMAGE_PAIR_AGNES_25_FLASH,
+    ],
+  },
+  {
     id: "video.volcengine-wan",
     label: "万相 Wan",
     hint: "火山方舟 · Wan2.1；下拉显示文生/图生，保存/调用为官方完整 wan2-1-* ID",
@@ -1963,6 +2049,13 @@ export function resolveApiFormatId(input: {
     ) {
       return "video.volcengine-wan";
     }
+    // Agnes 2.5 Flash 须在 Seedance「2.5」启发式之前匹配
+    if (
+      bits.includes("agnes-video-2.5-flash") ||
+      (bits.includes("agnes") && bits.includes("2.5-flash"))
+    ) {
+      return "video.agnes-25-flash";
+    }
     if (
       bits.includes("seedance") ||
       bits.includes("doubao-seedance") ||
@@ -2193,6 +2286,65 @@ export function applyFormatParamAliases(
     !isBlankParam(ov.duration)
   ) {
     ov.duration_sec = ov.duration;
+  }
+  // Video：Gateway / OpenAI 别名 → ModelDesk reference_*（Agnes 2.5 等）
+  const modality = getApiFormat(formatId ?? "")?.modality;
+  if (modality === "video") {
+    const mapInputRef = (value: unknown): string | string[] | undefined => {
+      if (typeof value === "string" && value.trim()) return value.trim();
+      if (Array.isArray(value)) {
+        const items = value
+          .filter((x): x is string => typeof x === "string")
+          .map((x) => x.trim())
+          .filter(Boolean);
+        if (items.length === 1) return items[0];
+        if (items.length > 1) return items;
+      }
+      return undefined;
+    };
+    if (isBlankParam(ov.reference_image)) {
+      const fromIr = mapInputRef(ov.input_reference);
+      if (typeof fromIr === "string") ov.reference_image = fromIr;
+    }
+    if (
+      keys.has("reference_image") &&
+      isBlankParam(ov.reference_image) &&
+      typeof ov.first_frame === "string" &&
+      ov.first_frame.trim()
+    ) {
+      ov.reference_image = ov.first_frame.trim();
+    }
+    if (
+      keys.has("reference_image_end") &&
+      isBlankParam(ov.reference_image_end) &&
+      typeof ov.last_frame === "string" &&
+      ov.last_frame.trim()
+    ) {
+      ov.reference_image_end = ov.last_frame.trim();
+    }
+    const listKey =
+      format.fields.find((f) => f.type === "image_pair" && f.listKey?.trim())
+        ?.listKey ?? "reference_images";
+    if (keys.has(listKey) && isBlankParam(ov[listKey])) {
+      const fromIr = mapInputRef(ov.input_reference);
+      if (Array.isArray(fromIr)) {
+        ov[listKey] = fromIr;
+      } else if (Array.isArray(ov.images)) {
+        const imgs = ov.images
+          .filter((x): x is string => typeof x === "string")
+          .map((x) => x.trim())
+          .filter(Boolean);
+        if (imgs.length > 0) ov[listKey] = imgs;
+      }
+    }
+    if (
+      formatId === "video.agnes-25-flash" &&
+      keys.has("resolution") &&
+      isBlankParam(ov.resolution)
+    ) {
+      const size = typeof ov.size === "string" ? ov.size.trim() : "";
+      if (size) ov.resolution = size;
+    }
   }
   return ov;
 }

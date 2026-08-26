@@ -111,7 +111,9 @@ async function adapterGenerateVideo(input: VideoGenerateAdapterInput) {
   const referenceImage = await ensurePublicImageUrl(
     typeof params.reference_image === "string"
       ? params.reference_image
-      : undefined,
+      : typeof params.input_reference === "string"
+        ? params.input_reference
+        : undefined,
   );
   const referenceImageEnd = await ensurePublicImageUrl(
     typeof params.reference_image_end === "string"

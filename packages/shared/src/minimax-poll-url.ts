@@ -141,11 +141,15 @@ export function defaultPollUrlTemplate(
     case "video.openai-videos":
     case "video.seedance-relay":
     case "video.agnes":
-    case "video.grok":
+    case "video.agnes-25-flash":
+    case "video.grok": {
+      const root = /\/v1$/i.test(submit) ? submit : `${origin}/v1`;
+      return `${root}/videos/{{id}}`;
+    }
     case "video.openai-generations":
     case "video.openai-compatible": {
       const root = /\/v1$/i.test(submit) ? submit : `${origin}/v1`;
-      return `${root}/videos/{{id}}`;
+      return `${root}/videos/generations/{{id}}`;
     }
     case "image.openai-async": {
       const root = /\/v1$/i.test(submit) ? submit : `${origin}/v1`;

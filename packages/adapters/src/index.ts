@@ -40,7 +40,9 @@ export {
 export {
   generateVideo,
   buildSeedanceRelayForm,
+  buildAgnes25FlashSubmitBody,
   isAgnesVideoBaseUrl,
+  isAgnesVideo25Flash,
   isVolcengineArkBaseUrl,
   isZhipuVideoBaseUrl,
   zhipuSizeFromDimensions,

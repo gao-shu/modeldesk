@@ -1,6 +1,9 @@
 # Agnes Video — `video.agnes`
 
 > 对照表：官方能力 ↔ ModelDesk 已接能力。勿大段复制厂商文档正文。
+>
+> **协议分流**：本档案仅 **V2.0**（`agnes-video-v2.0`，`width` / `num_frames`）。  
+> **Agnes Video 2.5 Flash**（`mode` / `seconds` / `size:720P`）见 [`video-agnes-25-flash.md`](./video-agnes-25-flash.md)（`video.agnes-25-flash`）。
 
 ## Meta
 
@@ -8,7 +11,7 @@
 |----|-----|
 | `api_format` | `video.agnes` |
 | Modality | `video` |
-| Tier | `core`（列表顺序：即梦 → 智谱 → **Agnes** → 万相 …） |
+| Tier | `core`（列表顺序：即梦 → 智谱 → **Agnes** → Agnes 2.5 Flash → 万相 …） |
 | 建议 Base URL | `https://apihub.agnes-ai.com/v1` |
 | Action | `POST /videos`；轮询 `GET /agnesapi?video_id=` |
 | 典型 Model ID | `agnes-video-v2.0` |
@@ -77,10 +80,13 @@ Authorization: Bearer <KEY>
 - 官方强调 status 查询限流；本项目轮询有退避，过密易 429。
 - 图生视频：本地 data URI / base64 无法被 Agnes 云端拉取；需公网 URL 或 TOS。
 - 服务端可能归一化 width/height；以返回的 `size` / `seconds` 为准。
+- 勿将 Model ID 改成 `agnes-video-2.5-flash` 却仍选本 format：adapter 会按 **model id** 走 2.5 Flash 请求体，但 UI 仍是 V2.0 字段（帧数/分辨率档），易配错。新建请显选 `video.agnes-25-flash`。
+- 本 format 仅适合 `agnes-video-v2.0`；完整版 `agnes-video-2.5`（非 Flash）未接。
 
 ## 校验记录
 
 | 日期 | 结论 | 变更 |
 |------|------|------|
+| 2026-08-26 | — | 注明与 2.5 Flash 分流；新档案见 video-agnes-25-flash.md |
 | 2026-08-10 | 部分对齐 | 升为 core、排在智谱下；对照 Video V2.0 文档补矩阵与轮询约定；关键帧未接 |
 | 2026-08-10 | 档案初建 | |

@@ -565,6 +565,16 @@ const AGNES_VIDEO_SIZE_MAP: Record<
 /** Agnes recommended default when ratio omitted — kept as submit fallback. */
 export const AGNES_DEFAULT_SIZE = { w: 1152, h: 768 };
 
+/** Agnes Video 2.5 Flash：官方 size=720P 下各画幅输出像素。 */
+const AGNES_25_FLASH_SIZE_MAP: Record<string, { w: number; h: number }> = {
+  "21:9": { w: 1680, h: 720 },
+  "16:9": { w: 1280, h: 720 },
+  "4:3": { w: 960, h: 720 },
+  "1:1": { w: 720, h: 720 },
+  "3:4": { w: 720, h: 960 },
+  "9:16": { w: 720, h: 1280 },
+};
+
 const ZHIPU_SIZE_BY_TIER: Record<string, Record<string, string>> = {
   "480p": {
     "16:9": "720x480",
@@ -661,6 +671,27 @@ export function videoSettingsFromParams(
       numFrames,
       frameRate,
       durationSec,
+      fps,
+      aspectRatio: aspect,
+    };
+  }
+
+  // Agnes Video 2.5 Flash：官方 size 固定 "720P"；时长 seconds 4–12；像素由画幅决定。
+  if (format === "video.agnes-25-flash") {
+    const flashDuration = Math.min(
+      12,
+      Math.max(4, Math.round(durationSec > 0 ? durationSec : 5)),
+    );
+    const flashSize =
+      AGNES_25_FLASH_SIZE_MAP[aspect] ?? AGNES_25_FLASH_SIZE_MAP["16:9"]!;
+    const sizeTier = String(params.resolution ?? params.size ?? "720P").trim();
+    return {
+      width: flashSize.w,
+      height: flashSize.h,
+      size: sizeTier.toUpperCase() === "720P" ? "720P" : sizeTier || "720P",
+      numFrames: 0,
+      frameRate: 24,
+      durationSec: flashDuration,
       fps,
       aspectRatio: aspect,
     };

@@ -73,7 +73,9 @@ export type VideoGenOptions = {
   cameraFixed?: boolean;
   /** 智谱等：是否生成音效 / 配乐（默认 true）。 */
   withAudio?: boolean;
-  /** 可灵等：生成模式（std / pro）。 */
+  /**
+   * 生成模式：可灵 std/pro；Agnes 2.5 Flash 为 text / keyframe / reference。
+   */
   mode?: string;
   /**
    * 图生视频参考图：公网 URL 或 data URI / base64。
@@ -158,6 +160,259 @@ export function isAgnesVideoBaseUrl(
 ): boolean {
   if (!baseUrl) return false;
   return baseUrl.toLowerCase().includes("agnes-ai.com");
+}
+
+/** Agnes Video 2.5 Flash（mode / seconds / size=720P），与 v2.0 帧数协议不同。 */
+export function isAgnesVideo25Flash(
+  model: string,
+  apiFormat?: string | null,
+): boolean {
+  const f = (apiFormat ?? "").toLowerCase();
+  if (f === "video.agnes-25-flash") return true;
+  return /agnes-video-2\.5-flash/i.test(model);
+}
+
+type Agnes25Mode = "text" | "keyframe" | "reference";
+
+const AGNES_25_FLASH_SIZE = "720P" as const;
+
+/** Flash 官方 size 仅 720P；兼容 Gateway 传入的 size / 小写 720p。 */
+export function normalizeAgnes25FlashSize(
+  resolution?: string | null,
+  size?: string | null,
+): typeof AGNES_25_FLASH_SIZE {
+  const raw = (size ?? resolution ?? AGNES_25_FLASH_SIZE).trim();
+  if (!raw) return AGNES_25_FLASH_SIZE;
+  if (raw.toUpperCase() === AGNES_25_FLASH_SIZE) return AGNES_25_FLASH_SIZE;
+  if (/^720\s*p?$/i.test(raw)) return AGNES_25_FLASH_SIZE;
+  throw new Error(
+    `Agnes Video 2.5 Flash 仅支持 size="720P"（当前为 ${JSON.stringify(raw)}）`,
+  );
+}
+
+/** 由参考输入槽位推断官方 mode（UI 不再单独选生成模式）。 */
+function resolveAgnes25ModeFromRefs(
+  hasFirst: boolean,
+  hasLast: boolean,
+  imageCount: number,
+  audioCount: number,
+): Agnes25Mode {
+  const hasMedia = hasFirst || hasLast || imageCount > 0 || audioCount > 0;
+  if (!hasMedia) return "text";
+  if (imageCount > 0 || audioCount > 0) return "reference";
+  return "keyframe";
+}
+
+/** 单张首帧误放在 reference 模式 / 多参列表误放在 keyframe 时归一化。 */
+function normalizeAgnes25FlashRefs(opts: {
+  mode: Agnes25Mode;
+  referenceImage?: string;
+  referenceImageEnd?: string;
+  referenceImages: string[];
+  referenceAudios: string[];
+}): {
+  mode: Agnes25Mode;
+  referenceImage?: string;
+  referenceImageEnd?: string;
+  referenceImages: string[];
+  referenceAudios: string[];
+} {
+  let mode = opts.mode;
+  let referenceImage = opts.referenceImage;
+  let referenceImageEnd = opts.referenceImageEnd;
+  let referenceImages = [...opts.referenceImages];
+  const referenceAudios = [...opts.referenceAudios];
+
+  if (
+    mode === "reference" &&
+    referenceImage &&
+    referenceImages.length === 0 &&
+    !referenceImageEnd
+  ) {
+    referenceImages = [referenceImage];
+    referenceImage = undefined;
+  }
+
+  if (
+    mode === "reference" &&
+    (referenceImage || referenceImageEnd) &&
+    referenceImages.length > 0
+  ) {
+    throw new Error(
+      "Agnes 2.5 Flash mode=reference 不能同时使用首/尾帧与多参 images；请只选一种参考方式。",
+    );
+  }
+
+  if (
+    mode === "keyframe" &&
+    !referenceImage &&
+    !referenceImageEnd &&
+    referenceImages.length === 1
+  ) {
+    referenceImage = referenceImages[0];
+    referenceImages = [];
+  }
+
+  if (
+    mode === "keyframe" &&
+    referenceImages.length > 0 &&
+    (referenceImage || referenceImageEnd)
+  ) {
+    throw new Error(
+      "Agnes 2.5 Flash mode=keyframe 不能同时用首/尾帧与多参 images；请只选一种。",
+    );
+  }
+
+  // 显式 reference 但只有首/尾帧 → 按 keyframe 发官方字段
+  if (
+    mode === "reference" &&
+    (referenceImage || referenceImageEnd) &&
+    referenceImages.length === 0 &&
+    referenceAudios.length === 0
+  ) {
+    mode = "keyframe";
+  }
+
+  return {
+    mode,
+    referenceImage,
+    referenceImageEnd,
+    referenceImages,
+    referenceAudios,
+  };
+}
+
+function assertAgnesPublicUrl(
+  label: string,
+  value: string,
+  officialHost: boolean,
+): void {
+  if (officialHost && isDataUriOrRawBase64(value)) {
+    throw new Error(
+      `Agnes 官方 ${label} 要求公网可访问 URL，本地 base64 / data URI 无法被拉取。请开启对象存储或粘贴公网 URL。`,
+    );
+  }
+}
+
+/**
+ * Build POST /v1/videos body for Agnes Video 2.5 Flash.
+ * @see https://agnes-ai.com/zh-Hans/docs/agnes-video-25-flash
+ */
+export function buildAgnes25FlashSubmitBody(opts: {
+  model: string;
+  prompt: string;
+  mode?: string;
+  durationSec?: number;
+  aspectRatio?: string;
+  resolution?: string;
+  size?: string;
+  referenceImage?: string;
+  referenceImageEnd?: string;
+  referenceImages: string[];
+  referenceAudios: string[];
+  officialHost: boolean;
+}): Record<string, unknown> {
+  const images = opts.referenceImages.slice(0, 5);
+  const audios = opts.referenceAudios.slice(0, 3);
+  const hasFirst = Boolean(opts.referenceImage);
+  const hasLast = Boolean(opts.referenceImageEnd);
+  let mode = resolveAgnes25ModeFromRefs(
+    hasFirst,
+    hasLast,
+    images.length,
+    audios.length,
+  );
+
+  const normalized = normalizeAgnes25FlashRefs({
+    mode,
+    referenceImage: opts.referenceImage,
+    referenceImageEnd: opts.referenceImageEnd,
+    referenceImages: images,
+    referenceAudios: audios,
+  });
+  mode = normalized.mode;
+  const referenceImage = normalized.referenceImage;
+  const referenceImageEnd = normalized.referenceImageEnd;
+  const normImages = normalized.referenceImages.slice(0, 5);
+  const normAudios = normalized.referenceAudios.slice(0, 3);
+  const hasFirstNorm = Boolean(referenceImage);
+  const hasLastNorm = Boolean(referenceImageEnd);
+
+  const seconds = Math.min(
+    12,
+    Math.max(4, Math.round(opts.durationSec && opts.durationSec > 0 ? opts.durationSec : 5)),
+  );
+  const body: Record<string, unknown> = {
+    model: opts.model,
+    prompt: opts.prompt,
+    mode,
+    seconds: String(seconds),
+    size: normalizeAgnes25FlashSize(opts.resolution, opts.size),
+  };
+  const ratio = opts.aspectRatio?.trim();
+  if (ratio) body.aspect_ratio = ratio;
+
+  if (mode === "text") {
+    if (
+      hasFirstNorm ||
+      hasLastNorm ||
+      normImages.length > 0 ||
+      normAudios.length > 0
+    ) {
+      throw new Error(
+        "Agnes 2.5 Flash 文生模式不能带参考图/音频；请清空参考输入或去掉 input_reference。",
+      );
+    }
+    return body;
+  }
+
+  if (mode === "keyframe") {
+    if (normImages.length > 0 || normAudios.length > 0) {
+      throw new Error(
+        "Agnes 2.5 Flash mode=keyframe 不能带 images / audios；请改用首/尾帧，或将模式改为 reference。",
+      );
+    }
+    if (!hasFirstNorm && !hasLastNorm) {
+      throw new Error(
+        "Agnes 2.5 Flash mode=keyframe 需要至少一张首帧或尾帧（公网 URL）。",
+      );
+    }
+    if (referenceImage) {
+      assertAgnesPublicUrl("first_frame", referenceImage, opts.officialHost);
+      body.first_frame = referenceImage;
+    }
+    if (referenceImageEnd) {
+      assertAgnesPublicUrl("last_frame", referenceImageEnd, opts.officialHost);
+      body.last_frame = referenceImageEnd;
+    }
+    return body;
+  }
+
+  // mode === "reference"
+  if (hasFirstNorm || hasLastNorm) {
+    throw new Error(
+      "Agnes 2.5 Flash mode=reference 不能带 first_frame / last_frame；请改用多参图，或将模式改为 keyframe。",
+    );
+  }
+  if (opts.referenceImages.length > 5) {
+    throw new Error(
+      "Agnes 2.5 Flash mode=reference 最多 5 张参考图（images length must not exceed 5）。",
+    );
+  }
+  if (normImages.length === 0 && normAudios.length === 0) {
+    throw new Error(
+      "Agnes 2.5 Flash mode=reference 需要至少一张参考图或一段参考音频。",
+    );
+  }
+  for (const url of normImages) {
+    assertAgnesPublicUrl("images", url, opts.officialHost);
+  }
+  for (const url of normAudios) {
+    assertAgnesPublicUrl("audios", url, opts.officialHost);
+  }
+  if (normImages.length > 0) body.images = normImages;
+  if (normAudios.length > 0) body.audios = normAudios;
+  return body;
 }
 
 export function isVolcengineArkBaseUrl(
@@ -500,13 +755,36 @@ function resolveMediaUrl(baseUrl: string, maybeUrl: string): string {
   }
 }
 
-/** OpenAI Videos / 兼容中转：成片走 GET /videos/{id}/content（相对路径，需鉴权）. */
+/** OpenAI Videos / 兼容中转：成片走 GET …/videos/{id}/content 或 …/videos/generations/{id}/content（相对路径，需鉴权）. */
 function isApiVideoContentPath(url: string): boolean {
   try {
     const path = isHttpUrl(url) ? new URL(url).pathname : url;
-    return /\/videos\/[^/]+\/content\/?$/i.test(path);
+    return (
+      /\/videos\/[^/]+\/content\/?$/i.test(path) ||
+      /\/videos\/generations\/[^/]+\/content\/?$/i.test(path)
+    );
   } catch {
-    return /\/videos\/[^/]+\/content\/?$/i.test(url);
+    return (
+      /\/videos\/[^/]+\/content\/?$/i.test(url) ||
+      /\/videos\/generations\/[^/]+\/content\/?$/i.test(url)
+    );
+  }
+}
+
+function openAiGenerationsContentPath(id: string): string {
+  return `/videos/generations/${encodeURIComponent(id)}/content`;
+}
+
+/** 轮询地址（无 /content）被误当作成片 URL 时识别出来. */
+function looksLikeGenerationsPollPath(url: string): boolean {
+  try {
+    const path = isHttpUrl(url) ? new URL(url).pathname : url;
+    return (
+      /\/videos\/generations\/[^/]+\/?$/i.test(path) &&
+      !/\/content\/?$/i.test(path)
+    );
+  } catch {
+    return false;
   }
 }
 
@@ -836,8 +1114,11 @@ export async function generateVideo(
     resolveApiBaseUrl(options.baseUrl, formatId),
   );
   // Prefer explicit API 格式；baseUrl 猜测仅作旧数据回退。
+  const agnes25Flash = isAgnesVideo25Flash(options.model, options.apiFormat);
   const agnes =
     format === "video.agnes" ||
+    format === "video.agnes-25-flash" ||
+    agnes25Flash ||
     (!format && isAgnesVideoBaseUrl(baseUrl));
   const zhipu =
     format === "video.zhipu-cogvideox" ||
@@ -998,6 +1279,21 @@ export async function generateVideo(
           ? [referenceImage, referenceImageEnd]
           : referenceImage;
       }
+    } else if (agnes25Flash) {
+      submitBody = buildAgnes25FlashSubmitBody({
+        model: options.model,
+        prompt: options.prompt,
+        mode: options.mode,
+        durationSec: options.durationSec,
+        aspectRatio: options.aspectRatio,
+        resolution: options.resolution,
+        size: options.size,
+        referenceImage,
+        referenceImageEnd,
+        referenceImages,
+        referenceAudios,
+        officialHost: isAgnesVideoBaseUrl(baseUrl),
+      });
     } else if (agnes) {
       Object.assign(submitBody, {
         width: options.width ?? 1152,
@@ -1289,18 +1585,39 @@ export async function generateVideo(
           if (u) remoteUrl = u;
         }
       }
+      // Agnes 官方 /agnesapi：2.5 Flash 等常把成片放在顶层 `url`（未必有 metadata.url）
+      if (!remoteUrl && agnes) {
+        remoteUrl = String(
+          getPath(pollJson, "url") ??
+            getPath(pollJson, "metadata.url") ??
+            getPath(pollJson, "data.url") ??
+            "",
+        );
+      }
       // Grok 配置 + OpenAI 协议中转：可能把成片放在 url / output.url，或给相对 /content
-      if (!remoteUrl && (grok || openaiVideosProtocol)) {
+      if (!remoteUrl && (grok || openaiVideosProtocol || openaiGenerations)) {
         remoteUrl = String(
           getPath(pollJson, "url") ??
             getPath(pollJson, "output.url") ??
             getPath(pollJson, "metadata.url") ??
+            getPath(pollJson, "data.url") ??
+            getPath(pollJson, "video.url") ??
             "",
         );
       }
       // 官方 api.x.ai：video.url 为 https://vidgen.x.ai/...
-      // 中转常返回 video_* id + `/v1/videos/{id}/content`（相对路径，需鉴权下载）
-      if (
+      // 官方 /videos：video_* id + `/v1/videos/{id}/content`（相对路径，需鉴权下载）
+      // 兼容 /generations：走 `/v1/videos/generations/{id}/content`，勿与官方 /videos 混用
+      if (openaiGenerations) {
+        if (remoteUrl && looksLikeGenerationsPollPath(remoteUrl)) {
+          const base = remoteUrl.replace(/\/+$/, "");
+          remoteUrl = `${base}/content`;
+        } else if (!remoteUrl || !isHttpUrl(remoteUrl)) {
+          remoteUrl = isApiVideoContentPath(remoteUrl)
+            ? remoteUrl
+            : openAiGenerationsContentPath(pollId);
+        }
+      } else if (
         (openaiVideosProtocol ||
           looksLikeOpenAiVideoId(pollId) ||
           isApiVideoContentPath(remoteUrl)) &&
@@ -1369,6 +1686,7 @@ export async function generateVideo(
   // OpenAI /videos/{id}/content 需 Bearer；公网 CDN（官方 Grok vidgen）一般不需要
   const downloadHeaders =
     openaiVideosProtocol ||
+    openaiGenerations ||
     looksLikeOpenAiVideoId(pollId) ||
     isApiVideoContentPath(downloadUrl)
       ? { Authorization: `Bearer ${options.apiKey}` }

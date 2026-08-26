@@ -72,7 +72,11 @@ export function defaultVideoPollTiming(opts: {
   zhipu?: boolean;
 }): DefaultPollTiming {
   const format = (opts.apiFormat ?? "").toLowerCase();
-  if (opts.agnes || format === "video.agnes") {
+  if (
+    opts.agnes ||
+    format === "video.agnes" ||
+    format === "video.agnes-25-flash"
+  ) {
     return {
       initialDelayMs: 5_000,
       intervalMs: 8_000,

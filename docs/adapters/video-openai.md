@@ -35,7 +35,7 @@
 | format | 简单根 | 提交 | 轮询 / 取片 |
 |--------|--------|------|-------------|
 | `video.openai-videos` | `…/v1` | `POST /videos` | `GET /videos/{id}`；成片常走 `/videos/{id}/content` + Bearer |
-| `video.openai-compatible` | `…/v1`（占位 `https://api.example.com/v1`） | `POST /videos/generations` | `GET /videos/generations/{id}`；成片多在 `output.url` |
+| `video.openai-compatible` | `…/v1`（占位 `https://api.example.com/v1`） | `POST /videos/generations` | `GET /videos/generations/{id}`；成片在 `output.url`，或 `GET /videos/generations/{id}/content` + Bearer |
 | `video.openai-generations` | 同 generations | 同 compatible | extended 别名，避免旧配置断裂 |
 
 ## UI 参数与约束

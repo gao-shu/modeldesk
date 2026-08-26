@@ -9,13 +9,15 @@
   },
   "types": "./src/index.ts",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test src/*.test.ts"
   },
   "dependencies": {
     "@modeldesk/shared": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20",
+    "tsx": "^4.20.3",
     "typescript": "^5"
   }
 }

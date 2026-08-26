@@ -59,6 +59,7 @@ export function collectImageRefsFromBody(
   pushImageRef(out, body.images);
   pushImageRef(out, body.image_url);
   pushImageRef(out, body.image_urls);
+  pushImageRef(out, body.input_reference);
   const params =
     body.params && typeof body.params === "object" && !Array.isArray(body.params)
       ? (body.params as Record<string, unknown>)
@@ -71,6 +72,7 @@ export function collectImageRefsFromBody(
     pushImageRef(out, params.reference_images);
     pushImageRef(out, params.reference_image);
     pushImageRef(out, params.reference_image_2);
+    pushImageRef(out, params.input_reference);
   }
   return [...new Set(out)];
 }
@@ -90,15 +92,24 @@ function paramsFromBody(body: Record<string, unknown>): Record<string, unknown> 
     "speed",
     "format",
     "duration",
+    "duration_sec",
+    "seconds",
+    "mode",
     "aspect_ratio",
     "resolution",
+    "input_reference",
+    "reference_image",
+    "reference_image_end",
+    "reference_images",
   ] as const) {
     if (body[key] !== undefined && params[key] === undefined) {
       params[key] = body[key];
     }
   }
   const refs = collectImageRefsFromBody(body);
-  if (refs.length > 0 && params.reference_images === undefined) {
+  if (refs.length === 1 && params.reference_image === undefined) {
+    params.reference_image = refs[0];
+  } else if (refs.length > 0 && params.reference_images === undefined) {
     params.reference_images = JSON.stringify(refs);
   }
   return params;

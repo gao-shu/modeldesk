@@ -69,6 +69,7 @@ ModelDesk 用 **`api_format`** 描述「怎么调厂商接口」。本目录是�
 | `video.zhipu-cogvideox` | [video-zhipu-cogvideox.md](./video-zhipu-cogvideox.md) | core | 待校验 | 2026-08-10 |
 | `video.volcengine-wan` | [video-volcengine-wan.md](./video-volcengine-wan.md) | core | 待校验 | 2026-08-10 |
 | `video.agnes` | [video-agnes.md](./video-agnes.md) | core | 部分对齐 | 2026-08-10 |
+| `video.agnes-25-flash` | [video-agnes-25-flash.md](./video-agnes-25-flash.md) | core | 部分对齐 | 2026-08-26 |
 | `video.openai-videos` | [video-openai.md](./video-openai.md) | core | 部分对齐 | 2026-08-12 |
 | `video.openai-compatible` | [video-openai.md](./video-openai.md) | core | 部分对齐 | 2026-08-12 |
 | `video.openai-generations` | [video-openai.md](./video-openai.md) | extended | 部分对齐 | 2026-08-12 |

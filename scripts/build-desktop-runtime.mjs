@@ -6,7 +6,7 @@
  *     web/          Next standalone
  *     agents/       CLI / MCP / Gateway bundles (+ install-bins.mjs)
  */
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -110,6 +110,108 @@ function ensureSharpRuntimeDeps(webRoot) {
   }
 }
 
+/**
+ * Turbopack externalizes cloud SDKs under `.next/node_modules/*`.
+ * cos-nodejs-sdk-v5 → request → har-validator → ajv needs `fast-uri`, but
+ * standalone tracing does not hoist it onto NODE_PATH → API routes 500 with
+ * plain "Internal Server Error" (frontend: JSON parse on that text).
+ */
+function ensureObjectStorageTransitiveDeps(webRoot) {
+  const pnpmRoot = path.join(REPO, "node_modules", ".pnpm");
+  if (!fs.existsSync(pnpmRoot)) return;
+
+  const hoistedRoots = [
+    path.join(webRoot, "node_modules", ".pnpm", "node_modules"),
+    path.join(webRoot, "apps", "web", "node_modules", ".pnpm", "node_modules"),
+  ];
+
+  /** pnpm folder prefix → package folder name under node_modules */
+  const transitive = [{ prefix: "fast-uri@", name: "fast-uri" }];
+
+  let copied = 0;
+  for (const { prefix, name } of transitive) {
+    const folder = fs
+      .readdirSync(pnpmRoot, { withFileTypes: true })
+      .find((ent) => ent.isDirectory() && ent.name.startsWith(prefix));
+    if (!folder) {
+      console.warn(`[build-runtime] missing ${prefix} in repo pnpm store`);
+      continue;
+    }
+    const src = path.join(pnpmRoot, folder.name, "node_modules", name);
+    if (!fs.existsSync(src)) continue;
+    for (const root of hoistedRoots) {
+      fs.mkdirSync(root, { recursive: true });
+      copyTreeMaterialized(src, path.join(root, name));
+      copied += 1;
+    }
+  }
+  if (copied) {
+    console.log(
+      `[build-runtime] ensured object-storage transitive deps (${copied} copies)`,
+    );
+  }
+}
+
+/** Fail the desktop build before engine.zip if COS / models API cannot load. */
+function verifyObjectStorageRuntimeDeps(webRoot, nodeBin) {
+  const fastUriPkg = path.join(
+    webRoot,
+    "node_modules",
+    ".pnpm",
+    "node_modules",
+    "fast-uri",
+    "package.json",
+  );
+  if (!fs.existsSync(fastUriPkg)) {
+    throw new Error(
+      `[build-runtime] engine guard: fast-uri missing (${fastUriPkg})`,
+    );
+  }
+
+  const pnpmNested = path.join(webRoot, "node_modules", ".pnpm", "node_modules");
+  const nodePathParts = [
+    pnpmNested,
+    path.join(webRoot, "node_modules"),
+  ].filter((p) => fs.existsSync(p));
+
+  const modelsRoute = path.join(
+    webRoot,
+    "apps",
+    "web",
+    ".next",
+    "server",
+    "app",
+    "api",
+    "models",
+    "route.js",
+  );
+  if (!fs.existsSync(modelsRoute)) {
+    throw new Error(`[build-runtime] engine guard: missing ${modelsRoute}`);
+  }
+
+  const probe = `
+require('module').Module._initPaths();
+require('cos-nodejs-sdk-v5');
+require(${JSON.stringify(modelsRoute)});
+console.log('object-storage runtime ok');
+`;
+  const res = spawnSync(nodeBin, ["-e", probe], {
+    cwd: path.join(webRoot, "apps", "web"),
+    env: {
+      ...process.env,
+      NODE_PATH: nodePathParts.join(path.delimiter),
+    },
+    encoding: "utf8",
+  });
+  if (res.status !== 0) {
+    const detail = (res.stderr || res.stdout || "").trim();
+    throw new Error(
+      `[build-runtime] engine guard failed (models route / COS): ${detail}`,
+    );
+  }
+  console.log("[build-runtime] verified object-storage runtime deps");
+}
+
 function copyTreeMaterialized(src, dest) {
   fs.mkdirSync(dest, { recursive: true });
   for (const ent of fs.readdirSync(src, { withFileTypes: true })) {
@@ -179,7 +281,9 @@ async function main() {
   if (fs.existsSync(publicSrc)) copyDir(publicSrc, publicDest);
   // Do not hoist-copy .pnpm/node_modules (doubles size). Sidecar sets NODE_PATH instead.
   // sharp needs @img/* (+ detect-libc); standalone tracing often omits them → gallery/thumbs 500.
-  ensureSharpRuntimeDeps(path.join(RUNTIME, "web"));
+  const webRoot = path.join(RUNTIME, "web");
+  ensureSharpRuntimeDeps(webRoot);
+  ensureObjectStorageTransitiveDeps(webRoot);
 
   // 3) Agent entries (CLI / MCP / Gateway) — bundled + local better-sqlite3
   const agentsDir = path.join(RUNTIME, "agents");
@@ -245,6 +349,12 @@ async function main() {
   const pruned = pruneRuntimeForPackaging(RUNTIME);
   console.log(
     `[build-runtime] pack prune: ${pruned.files} files, ${pruned.dirs} dirs (~${pruned.mb.toFixed(1)} MB raw)`,
+  );
+
+  const bundledNode = path.join(RUNTIME, "node", isWin ? "node.exe" : "node");
+  verifyObjectStorageRuntimeDeps(
+    path.join(RUNTIME, "web"),
+    fs.existsSync(bundledNode) ? bundledNode : process.execPath,
   );
 
   // Single archive for NSIS (deep pnpm paths exceed Windows MAX_PATH in makensis)

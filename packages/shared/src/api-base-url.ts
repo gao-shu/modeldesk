@@ -113,7 +113,8 @@ function apiActionPathForFormat(apiFormatId: string): string | null {
   if (
     apiFormatId === "video.openai-videos" ||
     apiFormatId === "video.seedance-relay" ||
-    apiFormatId === "video.agnes"
+    apiFormatId === "video.agnes" ||
+    apiFormatId === "video.agnes-25-flash"
   ) {
     return "/videos";
   }

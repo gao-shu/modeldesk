@@ -18,7 +18,8 @@
     "@modeldesk/tos-storage": "workspace:*",
     "ali-oss": "^6.22.0",
     "bce-sdk-js": "^0.2.9",
-    "cos-nodejs-sdk-v5": "^2.14.6"
+    "cos-nodejs-sdk-v5": "^2.14.6",
+    "fast-uri": "^3.0.1"
   },
   "devDependencies": {
     "@types/node": "^20",
