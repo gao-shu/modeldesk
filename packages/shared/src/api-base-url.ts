@@ -71,6 +71,7 @@ function apiRootPathForFormat(apiFormatId: string): string | null {
     apiFormatId.endsWith(".openai-compatible") ||
     apiFormatId.endsWith(".openai-videos") ||
     apiFormatId.endsWith(".seedance-relay") ||
+    apiFormatId.endsWith(".minimax-h3-relay") ||
     apiFormatId.endsWith(".openai-generations")
   ) {
     return DEFAULT_V1_ROOT;
@@ -113,6 +114,7 @@ function apiActionPathForFormat(apiFormatId: string): string | null {
   if (
     apiFormatId === "video.openai-videos" ||
     apiFormatId === "video.seedance-relay" ||
+    apiFormatId === "video.minimax-h3-relay" ||
     apiFormatId === "video.agnes" ||
     apiFormatId === "video.agnes-25-flash"
   ) {

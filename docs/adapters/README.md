@@ -65,6 +65,8 @@ ModelDesk 用 **`api_format`** 描述「怎么调厂商接口」。本目录是�
 | `video.volcengine-seedance` | [video-volcengine-seedance.md](./video-volcengine-seedance.md) | core | 部分对齐 | 2026-08-10 |
 | `video.kling` | [video-kling.md](./video-kling.md) | core | 部分对齐 | 2026-08-11 |
 | `video.minimax-hailuo` | [video-minimax-hailuo.md](./video-minimax-hailuo.md) | core | 部分对齐 | 2026-08-13 |
+| `video.minimax-h3-relay` | [video-minimax-h3-relay.md](./video-minimax-h3-relay.md) | core | 部分对齐 | 2026-08-30 |
+| `video.seedance-relay` | — | core | 部分对齐 | 2026-08-30 |
 | `video.vidu` | [video-vidu.md](./video-vidu.md) | core | 部分对齐 | 2026-08-11 |
 | `video.zhipu-cogvideox` | [video-zhipu-cogvideox.md](./video-zhipu-cogvideox.md) | core | 待校验 | 2026-08-10 |
 | `video.volcengine-wan` | [video-volcengine-wan.md](./video-volcengine-wan.md) | core | 待校验 | 2026-08-10 |

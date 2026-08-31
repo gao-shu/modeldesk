@@ -134,6 +134,13 @@ export function suggestedConfigName(
     return raw ? `可灵 · ${raw}` : "可灵 Kling";
   }
   if (
+    labelLower.includes("拾光") ||
+    id === "minimax_h3" ||
+    id === "minimax-h3-relay"
+  ) {
+    return raw ? `拾光 · ${raw}` : "拾光 minimax_h3";
+  }
+  if (
     labelLower.includes("海螺") ||
     labelLower.includes("hailuo") ||
     id.includes("hailuo") ||

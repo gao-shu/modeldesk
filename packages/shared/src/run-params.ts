@@ -697,6 +697,33 @@ export function videoSettingsFromParams(
     };
   }
 
+  // 拾光 MiniMax H3 中转：文档 size 枚举 + resolution 768p/2K
+  if (format === "video.minimax-h3-relay") {
+    const H3_RELAY_SIZE: Record<string, { w: number; h: number }> = {
+      "16:9": { w: 1280, h: 720 },
+      "9:16": { w: 720, h: 1280 },
+      "4:3": { w: 1024, h: 768 },
+      "3:4": { w: 768, h: 1024 },
+      "1:1": { w: 768, h: 768 },
+      "21:9": { w: 1344, h: 576 },
+    };
+    const sz = H3_RELAY_SIZE[aspect] ?? H3_RELAY_SIZE["16:9"]!;
+    const h3Duration = Math.min(
+      15,
+      Math.max(4, Math.round(durationSec > 0 ? durationSec : 5)),
+    );
+    return {
+      width: sz.w,
+      height: sz.h,
+      size: `${sz.w}x${sz.h}`,
+      numFrames,
+      frameRate,
+      durationSec: h3Duration,
+      fps,
+      aspectRatio: aspect,
+    };
+  }
+
   // Volcengine Seedance / Wan / 中转 multipart：prefer aspect; size is WxH tier
   if (
     format === "video.volcengine-seedance" ||

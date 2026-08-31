@@ -998,6 +998,138 @@ type VideoSubmitPayload =
       logBody: Record<string, unknown>;
     };
 
+/** 拾光等中转文档 size 枚举（按画幅推断）。 */
+const MINIMAX_H3_RELAY_SIZE: Record<string, string> = {
+  "16:9": "1280x720",
+  "9:16": "720x1280",
+  "4:3": "1024x768",
+  "3:4": "768x1024",
+  "1:1": "768x768",
+  "21:9": "1344x576",
+};
+
+export function normalizeMinimaxH3RelayResolution(
+  raw?: string | null,
+): "768p" | "2K" {
+  const t = (raw ?? "768p").trim();
+  if (/^2k$/i.test(t) || /^1080p?$/i.test(t)) return "2K";
+  return "768p";
+}
+
+export function resolveMinimaxH3RelaySize(
+  aspectRatio?: string,
+  explicitSize?: string,
+): string {
+  const explicit = explicitSize?.trim();
+  if (explicit && /^\d+\s*[x×]\s*\d+$/i.test(explicit)) {
+    return explicit.replace(/\s*[x×]\s*/i, "x");
+  }
+  const aspect = aspectRatio?.trim() || "16:9";
+  return MINIMAX_H3_RELAY_SIZE[aspect] ?? MINIMAX_H3_RELAY_SIZE["16:9"]!;
+}
+
+function appendRelayFormMedia(
+  form: FormData,
+  field: string,
+  ref: string,
+  logRefs: string[],
+): void {
+  const trimmed = ref.trim();
+  if (!trimmed) return;
+  if (isHttpUrl(trimmed)) {
+    form.append(field, trimmed);
+    logRefs.push(trimmed);
+    return;
+  }
+  const parsed = parseVideoDataUri(trimmed);
+  if (parsed) {
+    const filename = `${field}-${logRefs.length}.${videoMimeToExt(parsed.mime)}`;
+    const blob = new Blob([new Uint8Array(parsed.bytes)], {
+      type: parsed.mime,
+    });
+    form.append(field, blob, filename);
+    logRefs.push(`[file ${filename}]`);
+    return;
+  }
+  form.append(field, trimmed);
+  logRefs.push(redactUrlValue(trimmed));
+}
+
+/**
+ * 拾光 minimax_h3：OpenAI 形 /videos，但带 H3 的 size/resolution/ratio。
+ * 文生 JSON；有参考图时 multipart（与中转 curl -F 一致）。
+ */
+export function buildMinimaxH3RelaySubmit(opts: {
+  model: string;
+  prompt: string;
+  durationSec?: number;
+  size?: string;
+  resolution?: string;
+  aspectRatio?: string;
+  referenceImage?: string;
+  referenceImageEnd?: string;
+}): VideoSubmitPayload {
+  const seconds = Math.min(
+    15,
+    Math.max(4, Math.round(opts.durationSec ?? 5)),
+  );
+  const size = resolveMinimaxH3RelaySize(opts.aspectRatio, opts.size);
+  const resolution = normalizeMinimaxH3RelayResolution(opts.resolution);
+  const ratioRaw = opts.aspectRatio?.trim() || "16:9";
+  const ratio = ratioRaw === "adaptive" ? "16:9" : ratioRaw;
+  const first = opts.referenceImage?.trim();
+  const last = opts.referenceImageEnd?.trim();
+
+  if (!first && !last) {
+    return {
+      mode: "json",
+      body: {
+        model: opts.model,
+        prompt: opts.prompt,
+        // 中转 Go schema：seconds 为 string（数字会 400 invalid_json）
+        seconds: String(seconds),
+        size,
+        resolution,
+        ratio,
+      },
+    };
+  }
+
+  const form = new FormData();
+  form.append("model", opts.model);
+  form.append("prompt", opts.prompt);
+  form.append("seconds", String(seconds));
+  form.append("size", size);
+  form.append("resolution", resolution);
+  form.append("ratio", ratio);
+
+  const logBody: Record<string, unknown> = {
+    model: opts.model,
+    prompt: opts.prompt,
+    seconds: String(seconds),
+    size,
+    resolution,
+    ratio,
+    _multipart: true,
+  };
+  const logRefs: string[] = [];
+
+  if (first && last) {
+    appendRelayFormMedia(form, "first_frame", first, logRefs);
+    appendRelayFormMedia(form, "last_frame", last, logRefs);
+    logBody.first_frame = logRefs[0];
+    logBody.last_frame = logRefs[1];
+  } else if (first) {
+    appendRelayFormMedia(form, "input_reference", first, logRefs);
+    logBody.input_reference = logRefs[0];
+  } else if (last) {
+    appendRelayFormMedia(form, "last_frame", last, logRefs);
+    logBody.last_frame = logRefs[0];
+  }
+
+  return { mode: "multipart", form, logBody };
+}
+
 /** Redact bulky base64/data-URI fields in HTTP logs. */
 function redactImageFieldsForLog(
   body: Record<string, unknown>,
@@ -1130,7 +1262,9 @@ export async function generateVideo(
   // 官方 OpenAI Videos：/videos + /videos/{id}/content 取片
   const openaiVideos = format === "video.openai-videos";
   const seedanceRelay = format === "video.seedance-relay";
-  const openaiVideosProtocol = openaiVideos || seedanceRelay;
+  const minimaxH3Relay = format === "video.minimax-h3-relay";
+  const openaiVideosProtocol =
+    openaiVideos || seedanceRelay || minimaxH3Relay;
   // 中转兼容 / OpenAI Generations：/videos/generations
   const openaiGenerations =
     format === "video.openai-generations" ||
@@ -1205,6 +1339,17 @@ export async function generateVideo(
       form: built.form,
       logBody: built.logBody,
     };
+  } else if (minimaxH3Relay) {
+    submitPayload = buildMinimaxH3RelaySubmit({
+      model: options.model,
+      prompt: options.prompt,
+      durationSec: options.durationSec,
+      size: options.size,
+      resolution: options.resolution,
+      aspectRatio: options.aspectRatio,
+      referenceImage,
+      referenceImageEnd,
+    });
   } else {
   let submitBody: Record<string, unknown>;
   if (volcengine) {

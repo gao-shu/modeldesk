@@ -40,6 +40,9 @@ export {
 export {
   generateVideo,
   buildSeedanceRelayForm,
+  buildMinimaxH3RelaySubmit,
+  normalizeMinimaxH3RelayResolution,
+  resolveMinimaxH3RelaySize,
   buildAgnes25FlashSubmitBody,
   isAgnesVideoBaseUrl,
   isAgnesVideo25Flash,

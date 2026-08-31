@@ -100,6 +100,7 @@ export function defaultVideoPollTiming(opts: {
   if (
     format === "video.kling" ||
     format === "video.minimax-hailuo" ||
+    format === "video.minimax-h3-relay" ||
     format === "video.vidu"
   ) {
     return {

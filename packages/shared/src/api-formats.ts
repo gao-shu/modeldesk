@@ -1808,6 +1808,69 @@ export const API_FORMATS: readonly ApiFormatDef[] = [
     ],
   },
   {
+    id: "video.minimax-h3-relay",
+    label: "拾光 minimax_h3",
+    hint: "社区中转 · POST /v1/videos · H3 字段 size/resolution（勿与官方 OpenAI / 海螺混用）",
+    modality: "video",
+    tier: "core",
+    suggestedBaseUrl: "https://new.xlcsh.top/v1",
+    apiRootPath: "/v1",
+    apiActionPath: "/videos",
+    suggestedModelId: "minimax_h3",
+    modelOptions: ["minimax_h3"],
+    fields: [
+      {
+        key: "duration_sec",
+        label: "时长",
+        type: "select",
+        defaultValue: "5",
+        options: [
+          { value: "4", label: "4 秒" },
+          { value: "5", label: "5 秒" },
+          { value: "6", label: "6 秒" },
+          { value: "7", label: "7 秒" },
+          { value: "8", label: "8 秒" },
+          { value: "9", label: "9 秒" },
+          { value: "10", label: "10 秒" },
+          { value: "11", label: "11 秒" },
+          { value: "12", label: "12 秒" },
+          { value: "13", label: "13 秒" },
+          { value: "14", label: "14 秒" },
+          { value: "15", label: "15 秒" },
+        ],
+        hint: "写入 seconds（4–15）",
+      },
+      {
+        key: "resolution",
+        label: "分辨率",
+        type: "select",
+        defaultValue: "768p",
+        options: [
+          { value: "768p", label: "768p" },
+          { value: "2K", label: "2K" },
+        ],
+        hint: "H3 仅 768p / 2K；勿用 720p",
+      },
+      {
+        ...ASPECT_COMMON,
+        key: "aspect_ratio",
+        options: [
+          { value: "16:9", label: "16:9" },
+          { value: "21:9", label: "21:9" },
+          { value: "4:3", label: "4:3" },
+          { value: "1:1", label: "1:1" },
+          { value: "3:4", label: "3:4" },
+          { value: "9:16", label: "9:16" },
+        ],
+        hint: "推断 size；同时写入 ratio",
+      },
+      {
+        ...REFERENCE_IMAGE_PAIR,
+        hint: "无=文生；首帧→input_reference；首尾帧→first_frame + last_frame",
+      },
+    ],
+  },
+  {
     id: "video.mock",
     label: "Mock",
     hint: "本地演示",
@@ -2012,6 +2075,15 @@ export function resolveApiFormatId(input: {
       bits.includes("生数")
     ) {
       return "video.vidu";
+    }
+    // 拾光等 OpenAI 形 /v1/videos + minimax_h3（须在官方海螺启发式之前）
+    if (
+      bits.includes("minimax_h3") ||
+      bits.includes("minimax-h3-relay") ||
+      bits.includes("拾光") ||
+      (bits.includes("xlcsh") && bits.includes("minimax"))
+    ) {
+      return "video.minimax-h3-relay";
     }
     if (
       bits.includes("hailuo") ||

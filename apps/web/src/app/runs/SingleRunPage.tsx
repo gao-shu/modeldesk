@@ -994,6 +994,7 @@ export function SingleRunPage({ modality }: { modality: Modality }) {
             )
           : "";
       const seedanceRelay = apiFormat === "video.seedance-relay";
+      const minimaxH3Relay = apiFormat === "video.minimax-h3-relay";
       const body: Record<string, unknown> = {
         model: modelId,
         prompt,
@@ -1004,10 +1005,13 @@ export function SingleRunPage({ modality }: { modality: Modality }) {
       }
       if (typeof params.aspect_ratio === "string" && params.aspect_ratio) {
         body.aspect_ratio = params.aspect_ratio;
+        if (minimaxH3Relay) body.ratio = params.aspect_ratio;
       }
       if (params.duration_sec != null && params.duration_sec !== "") {
         body.duration_sec = params.duration_sec;
-        if (seedanceRelay) body.seconds = String(params.duration_sec);
+        if (seedanceRelay || minimaxH3Relay) {
+          body.seconds = String(params.duration_sec);
+        }
       }
       if (params.duration != null && params.duration !== "") {
         body.duration = params.duration;
@@ -1056,11 +1060,29 @@ export function SingleRunPage({ modality }: { modality: Modality }) {
       if (refs.length > 0) {
         body.input_reference = refs.length === 1 ? refs[0] : refs;
         if (seedanceRelay) body.confirm_no_human_reference = "true";
+        if (minimaxH3Relay) body._multipart = true;
+      }
+      if (minimaxH3Relay) {
+        const aspect =
+          typeof params.aspect_ratio === "string" && params.aspect_ratio
+            ? params.aspect_ratio
+            : "16:9";
+        const sizeMap: Record<string, string> = {
+          "16:9": "1280x720",
+          "9:16": "720x1280",
+          "4:3": "1024x768",
+          "3:4": "768x1024",
+          "1:1": "768x768",
+          "21:9": "1344x576",
+        };
+        body.size = sizeMap[aspect] ?? "1280x720";
+        if (!body.resolution) body.resolution = "768p";
       }
       return {
-        url: seedanceRelay
-          ? `${baseUrl || "(unknown)"}/videos`
-          : `${baseUrl || "(unknown)"}/videos/generations`,
+        url:
+          seedanceRelay || minimaxH3Relay
+            ? `${baseUrl || "(unknown)"}/videos`
+            : `${baseUrl || "(unknown)"}/videos/generations`,
         body,
       };
     }

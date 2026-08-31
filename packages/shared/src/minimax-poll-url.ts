@@ -140,6 +140,7 @@ export function defaultPollUrlTemplate(
       return `${origin}/api/paas/v4/async-result/{{id}}`;
     case "video.openai-videos":
     case "video.seedance-relay":
+    case "video.minimax-h3-relay":
     case "video.agnes":
     case "video.agnes-25-flash":
     case "video.grok": {
