@@ -1,4 +1,10 @@
 import { randomUUID } from "node:crypto";
+import {
+  chatMessagesHavePayload,
+  chatMessagesToStoragePrompt,
+  normalizeIncomingChatMessages,
+  resolveThinkingOption,
+} from "@modeldesk/shared";
 import { runCoreResultToPublic, runText } from "@/lib/server/run-core";
 import { jsonResponse, openaiErrorResponse, readJsonBody } from "./http";
 import { resolveModelRef } from "./resolve-model";
@@ -7,39 +13,11 @@ function log(...args: unknown[]) {
   console.error("[modeldesk-gateway]", ...args);
 }
 
-type ChatMessage = { role?: string; content?: unknown };
-
-function messageContentToText(content: unknown): string {
-  if (typeof content === "string") return content;
-  if (Array.isArray(content)) {
-    return content
-      .map((part) => {
-        if (typeof part === "string") return part;
-        if (part && typeof part === "object" && "text" in part) {
-          return String((part as { text?: unknown }).text ?? "");
-        }
-        return "";
-      })
-      .filter(Boolean)
-      .join("");
-  }
-  if (content == null) return "";
-  return String(content);
-}
-
-function messagesToPrompt(messages: ChatMessage[]): string {
-  const parts = messages
-    .map((m) => {
-      const role = (m.role ?? "user").trim() || "user";
-      const text = messageContentToText(m.content).trim();
-      if (!text) return "";
-      return `${role}: ${text}`;
-    })
-    .filter(Boolean);
-  if (parts.length === 1 && parts[0]!.startsWith("user: ")) {
-    return parts[0]!.slice("user: ".length);
-  }
-  return parts.join("\n\n");
+function runParamsFromBody(body: Record<string, unknown>): Record<string, unknown> {
+  const params: Record<string, unknown> = {};
+  const thinking = resolveThinkingOption(body);
+  if (thinking) params.thinking = thinking;
+  return params;
 }
 
 export async function chatCompletionsResponse(req: Request): Promise<Response> {
@@ -58,13 +36,12 @@ export async function chatCompletionsResponse(req: Request): Promise<Response> {
     );
   }
 
-  const messages = Array.isArray(body.messages)
-    ? (body.messages as ChatMessage[])
-    : [];
-  const prompt = messagesToPrompt(messages);
-  if (!prompt.trim()) {
+  const messages = normalizeIncomingChatMessages(body.messages);
+  if (!chatMessagesHavePayload(messages)) {
     return openaiErrorResponse(400, "messages must include non-empty content");
   }
+  const prompt = chatMessagesToStoragePrompt(messages);
+  const runParams = runParamsFromBody(body);
 
   const temperature =
     typeof body.temperature === "number" ? body.temperature : null;
@@ -77,6 +54,15 @@ export async function chatCompletionsResponse(req: Request): Promise<Response> {
   const stream = body.stream === true;
   const completionId = `chatcmpl-${randomUUID().replace(/-/g, "").slice(0, 24)}`;
   const created = Math.floor(Date.now() / 1000);
+
+  const runInput = {
+    modelId: resolved.id,
+    prompt,
+    messages,
+    temperature,
+    maxTokens,
+    ...(Object.keys(runParams).length > 0 ? { params: runParams } : {}),
+  };
 
   if (stream) {
     const encoder = new TextEncoder();
@@ -103,10 +89,7 @@ export async function chatCompletionsResponse(req: Request): Promise<Response> {
           });
 
           const outcome = await runText({
-            modelId: resolved.id,
-            prompt,
-            temperature,
-            maxTokens,
+            ...runInput,
             onEvent: (event, data) => {
               if (event !== "token") return;
               const text = String((data as { text?: unknown }).text ?? "");
@@ -184,12 +167,7 @@ export async function chatCompletionsResponse(req: Request): Promise<Response> {
     });
   }
 
-  const outcome = await runText({
-    modelId: resolved.id,
-    prompt,
-    temperature,
-    maxTokens,
-  });
+  const outcome = await runText(runInput);
 
   if (outcome.kind === "prepare_error") {
     return openaiErrorResponse(400, outcome.error);

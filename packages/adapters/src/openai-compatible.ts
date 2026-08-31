@@ -3,13 +3,15 @@
  * Works with OpenAI, DeepSeek, and most /v1 chat completions endpoints.
  */
 
+import {
+  chatMessageTextContent,
+  redactChatMessagesForLog,
+  type ChatMessage,
+} from "@modeldesk/shared";
 import { resolveChatCompletionsUrl } from "@modeldesk/shared";
 import { parseUsageFromUnknown } from "./usage";
 
-export type ChatMessage = {
-  role: "system" | "user" | "assistant";
-  content: string;
-};
+export type { ChatMessage } from "@modeldesk/shared";
 
 export type ChatUsage = {
   promptTokens: number | null;
@@ -29,6 +31,8 @@ export type StreamChatOptions = {
   messages: ChatMessage[];
   temperature?: number;
   maxTokens?: number;
+  /** Zhipu GLM-4.6V — maps to `{ thinking: { type } }` on the request body. */
+  thinking?: "enabled" | "disabled";
   signal?: AbortSignal;
   timeoutMs?: number;
   /** From model.defaults.base_url_mode — advanced = URL as-is. */
@@ -66,6 +70,29 @@ function parseUsage(raw: unknown): ChatUsage | null {
   };
 }
 
+function chatRequestBody(options: StreamChatOptions, stream: boolean): Record<string, unknown> {
+  return {
+    model: options.model,
+    messages: options.messages,
+    stream,
+    ...(stream ? { stream_options: { include_usage: true } } : {}),
+    ...(options.temperature !== undefined
+      ? { temperature: options.temperature }
+      : {}),
+    ...(options.maxTokens !== undefined ? { max_tokens: options.maxTokens } : {}),
+    ...(options.thinking
+      ? { thinking: { type: options.thinking } }
+      : {}),
+  };
+}
+
+/** Redact attachment URLs in messages before HTTP logs. */
+export function redactChatMessagesForHttpLog(
+  messages: readonly ChatMessage[],
+): ChatMessage[] {
+  return redactChatMessagesForLog(messages);
+}
+
 /**
  * Stream chat completions via SSE (OpenAI-compatible).
  * Yields token deltas, optional usage, then done.
@@ -75,7 +102,7 @@ export async function* streamChatCompletion(
 ): AsyncGenerator<StreamChatChunk, void, unknown> {
   if (options.baseUrl.startsWith("mock://")) {
     const reply = `Mock reply from ${options.model}: ${options.messages
-      .map((m) => m.content)
+      .map((m) => chatMessageTextContent(m.content))
       .join(" ")
       .slice(0, 120)}`;
     const words = reply.split(/(\s+)/).filter(Boolean);
@@ -115,18 +142,7 @@ export async function* streamChatCompletion(
         "Content-Type": "application/json",
         Accept: "text/event-stream",
       },
-      body: JSON.stringify({
-        model: options.model,
-        messages: options.messages,
-        stream: true,
-        stream_options: { include_usage: true },
-        ...(options.temperature !== undefined
-          ? { temperature: options.temperature }
-          : {}),
-        ...(options.maxTokens !== undefined
-          ? { max_tokens: options.maxTokens }
-          : {}),
-      }),
+      body: JSON.stringify(chatRequestBody(options, true)),
       signal,
     });
   } catch (error) {
@@ -233,17 +249,7 @@ export async function chatCompletion(
         Authorization: `Bearer ${options.apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model: options.model,
-        messages: options.messages,
-        stream: false,
-        ...(options.temperature !== undefined
-          ? { temperature: options.temperature }
-          : {}),
-        ...(options.maxTokens !== undefined
-          ? { max_tokens: options.maxTokens }
-          : {}),
-      }),
+      body: JSON.stringify(chatRequestBody(options, false)),
       signal,
     });
   } catch (error) {

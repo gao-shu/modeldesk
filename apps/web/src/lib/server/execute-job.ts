@@ -12,6 +12,7 @@ import {
   synthesizeQwenSpeech,
   synthesizeSpeech,
   synthesizeXiaomiMimoSpeech,
+  type ChatMessage,
   type StreamChatChunk,
 } from "@modeldesk/adapters";
 
@@ -123,6 +124,7 @@ import {
   resolveApiBaseUrl,
 } from "@modeldesk/shared";
 import { saveArtifact } from "./artifacts";
+import { prepareTextChat } from "./chat-text";
 import { ensurePublicImageUrl } from "./tos";
 import {
   estimateCostUsd,
@@ -146,6 +148,8 @@ export type JobExecParams = {
   maxTokens?: number | null;
   /** Per-run overrides (merged with model defaults). */
   params?: Record<string, unknown> | null;
+  /** OpenAI-shaped messages (gateway). Overrides prompt-only user message when set. */
+  messages?: ChatMessage[] | null;
   /** Cancel / disconnect signal — aborts upstream provider calls. */
   signal?: AbortSignal | null;
   /** Emit SSE-friendly progress for this job (slot label optional). */
@@ -242,24 +246,43 @@ async function runTextJob(input: JobExecParams): Promise<JobExecResult> {
   let inputTokens: number | null = null;
   let outputTokens: number | null = null;
   const publicModel = toPublicModel(input.row);
-  const params = resolveRunParams(input.row.modality, publicModel.defaults, {
-    ...(input.params ?? {}),
-    ...(input.temperature != null ? { temperature: input.temperature } : {}),
-    ...(input.maxTokens != null ? { max_tokens: input.maxTokens } : {}),
+  const apiFormat = resolveApiFormatId({
+    modality: input.row.modality,
+    defaults: publicModel.defaults,
+    provider: publicModel.provider,
+    baseUrl: publicModel.baseUrl,
+    modelId: publicModel.modelId,
   });
+  const params = resolveRunParamsForFormat(
+    apiFormat,
+    input.row.modality,
+    publicModel.defaults,
+    {
+      ...(input.params ?? {}),
+      ...(input.temperature != null ? { temperature: input.temperature } : {}),
+      ...(input.maxTokens != null ? { max_tokens: input.maxTokens } : {}),
+    },
+  );
   const temperature =
     typeof params.temperature === "number" ? params.temperature : undefined;
   const maxTokens =
     typeof params.max_tokens === "number" ? params.max_tokens : undefined;
+
+  const prepared = await prepareTextChat({
+    prompt: input.prompt,
+    params,
+    messages: input.messages,
+  });
 
   try {
     for await (const chunk of streamChatCompletion({
       baseUrl: input.row.base_url!,
       apiKey: input.apiKey,
       model: input.row.model_id,
-      messages: [{ role: "user", content: input.prompt }],
+      messages: prepared.messages,
       temperature,
       maxTokens,
+      thinking: prepared.thinking,
       timeoutMs: 120_000,
       signal: input.signal ?? undefined,
       baseUrlMode: apiBaseUrlModeFromDefaults(publicModel.defaults),
@@ -285,12 +308,13 @@ async function runTextJob(input: JobExecParams): Promise<JobExecResult> {
     }
 
     const latencyMs = Date.now() - started;
+    const tokenPrompt = prepared.promptText || input.prompt;
     if (inputTokens == null && outputTokens == null) {
-      const estimated = resolveTokenCounts({ prompt: input.prompt });
+      const estimated = resolveTokenCounts({ prompt: tokenPrompt });
       inputTokens = estimated.inputTokens;
       outputTokens = estimated.outputTokens;
     } else if (inputTokens == null) {
-      inputTokens = resolveTokenCounts({ prompt: input.prompt }).inputTokens;
+      inputTokens = resolveTokenCounts({ prompt: tokenPrompt }).inputTokens;
     }
 
     const textBytes = Buffer.from(content, "utf8");

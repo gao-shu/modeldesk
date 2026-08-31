@@ -282,6 +282,31 @@ export const DEFAULT_PARAM_KEYS_BY_MODALITY: Record<
 };
 
 export {
+  CHAT_ATTACHMENTS_PARAM_KEY,
+  CHAT_THINKING_PARAM_KEY,
+  buildUserChatMessage,
+  chatMessageTextContent,
+  parseChatAttachmentsFromParams,
+  redactChatContentPart,
+  redactChatMessagesForLog,
+  resolveZhipuThinking,
+  resolveThinkingOption,
+  normalizeIncomingChatMessages,
+  chatMessagesHavePayload,
+  normalizeGatewayChatMessages,
+  chatMessagesToStoragePrompt,
+  type ChatAttachmentInput,
+  type ChatAttachmentKind,
+  type ChatContentPart,
+  type ChatFileUrlPart,
+  type ChatImageUrlPart,
+  type ChatMessage,
+  type ChatRole,
+  type ChatTextPart,
+  type ChatVideoUrlPart,
+} from "./chat-content";
+
+export {
   RUN_PARAM_FIELDS_BY_MODALITY,
   buildInitialRunParams,
   resolveRunParams,

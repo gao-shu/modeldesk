@@ -2,8 +2,12 @@
 
 import Link from "next/link";
 import {
+  CHAT_ATTACHMENTS_PARAM_KEY,
+  parseChatAttachmentsFromParams,
   RUN_PARAM_FIELDS_BY_MODALITY,
   fieldsForApiFormat,
+  type ChatAttachmentInput,
+  type ChatAttachmentKind,
   type RunParamField,
   type RunParamModality,
   type RunParamOption,
@@ -793,6 +797,366 @@ function AudioListParamControl({
   );
 }
 
+const ATTACHMENT_KIND_OPTIONS: { value: ChatAttachmentKind; label: string }[] = [
+  { value: "image", label: "图片" },
+  { value: "video", label: "视频" },
+  { value: "file", label: "文件" },
+];
+
+function parseAttachmentList(raw: string): ChatAttachmentInput[] {
+  return parseChatAttachmentsFromParams({
+    [CHAT_ATTACHMENTS_PARAM_KEY]: raw,
+  });
+}
+
+function serializeAttachmentList(items: ChatAttachmentInput[]): string {
+  const cleaned = items.filter((a) => a.url.trim());
+  return cleaned.length > 0 ? JSON.stringify(cleaned) : "";
+}
+
+async function isObjectStorageConfigured(): Promise<boolean> {
+  try {
+    const status = await fetch("/api/upload", { cache: "no-store" });
+    const data = (await status.json()) as {
+      configured?: boolean;
+      tosConfigured?: boolean;
+    };
+    return Boolean(data.configured ?? data.tosConfigured);
+  } catch {
+    return false;
+  }
+}
+
+async function resolveLocalMedia(
+  file: File,
+  kind: ChatAttachmentKind,
+): Promise<string> {
+  if (kind === "image") {
+    assertImageFile(file);
+    return resolveLocalImage(file);
+  }
+  if (file.size > 20 * 1024 * 1024) {
+    throw new Error("文件不能超过 20MB");
+  }
+  if (kind === "video") {
+    const okType =
+      /^video\//i.test(file.type) ||
+      /\.(mp4|webm|mov|avi|mkv|m4v)$/i.test(file.name);
+    if (!okType) {
+      throw new Error("请选择 MP4 / WebM / MOV 等视频");
+    }
+  } else {
+    if (/\.(exe|bat|cmd|sh|msi|dll)$/i.test(file.name)) {
+      throw new Error("不支持该文件类型");
+    }
+  }
+  const configured = await isObjectStorageConfigured();
+  if (!configured) {
+    throw new Error(
+      "视频/文件附件需要公网 URL。请到「系统设置」开启对象存储后再上传，或直接粘贴公网链接。",
+    );
+  }
+  const fd = new FormData();
+  fd.append("file", file, file.name);
+  fd.append("kind", kind === "video" ? "video" : "voice");
+  const res = await fetch("/api/upload", { method: "POST", body: fd });
+  const data = (await res.json()) as {
+    ok: boolean;
+    url?: string;
+    error?: string;
+  };
+  if (!res.ok || !data.ok || !data.url) {
+    throw new Error(data.error ?? "上传失败");
+  }
+  return data.url;
+}
+
+function describeAttachment(item: ChatAttachmentInput): string {
+  const kindLabel =
+    ATTACHMENT_KIND_OPTIONS.find((o) => o.value === item.kind)?.label ??
+    item.kind;
+  const url = item.url.trim();
+  if (url.startsWith("data:")) {
+    const approxKb = Math.max(1, Math.round((url.length * 0.75) / 1024));
+    return `${kindLabel} · 约 ${approxKb} KB · 已上传`;
+  }
+  if (/^https?:\/\//i.test(url)) {
+    try {
+      return `${kindLabel} · ${new URL(url).hostname}`;
+    } catch {
+      return `${kindLabel} · 公网 URL`;
+    }
+  }
+  return `${kindLabel} · 已填写`;
+}
+
+function isValidAttachmentUrl(kind: ChatAttachmentKind, url: string): boolean {
+  const v = url.trim();
+  if (!v) return false;
+  if (kind === "image") {
+    return (
+      /^https?:\/\//i.test(v) ||
+      v.startsWith("data:image/") ||
+      v.startsWith("blob:")
+    );
+  }
+  return /^https?:\/\//i.test(v);
+}
+
+function acceptForAttachmentKind(kind: ChatAttachmentKind): string {
+  switch (kind) {
+    case "video":
+      return "video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov,.mkv";
+    case "file":
+      return ".pdf,.txt,.md,.doc,.docx,.xls,.xlsx,.ppt,.pptx,application/pdf,text/plain";
+    default:
+      return "image/png,image/jpeg,image/jpg,image/webp";
+  }
+}
+
+/**
+ * VLM chat attachments — JSON [{ kind, url }] with per-slot kind + upload/URL.
+ */
+export function ChatAttachmentsField({
+  value,
+  disabled,
+  hint,
+  onChange,
+  inputClass,
+  max = 9,
+  compact,
+  objectStorageReady,
+}: {
+  value: string;
+  disabled?: boolean;
+  hint?: string;
+  onChange: (value: string) => void;
+  inputClass: string;
+  max?: number;
+  compact?: boolean;
+  objectStorageReady?: boolean | null;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [urlDraft, setUrlDraft] = useState("");
+  const [pendingKind, setPendingKind] = useState<ChatAttachmentKind>("image");
+  const items = parseAttachmentList(value);
+  const busy = Boolean(disabled) || uploading;
+
+  const commit = (next: ChatAttachmentInput[]) =>
+    onChange(serializeAttachmentList(next));
+
+  const removeAt = (index: number) => {
+    const next = items.slice();
+    next.splice(index, 1);
+    commit(next);
+  };
+
+  const updateAt = (index: number, patch: Partial<ChatAttachmentInput>) => {
+    const next = items.slice();
+    const cur = next[index];
+    if (!cur) return;
+    next[index] = { ...cur, ...patch };
+    commit(next);
+  };
+
+  const addItem = (kind: ChatAttachmentKind, url: string) => {
+    const trimmed = url.trim();
+    if (!trimmed) return;
+    if (!isValidAttachmentUrl(kind, trimmed)) {
+      window.alert(
+        kind === "image"
+          ? "请填写 http(s) URL 或上传图片"
+          : "请填写 http(s) 公网 URL",
+      );
+      return;
+    }
+    if (items.length >= max) {
+      window.alert(`最多 ${max} 个附件`);
+      return;
+    }
+    commit([...items, { kind, url: trimmed }]);
+    setUrlDraft("");
+  };
+
+  const addFiles = async (files: File[], kind: ChatAttachmentKind) => {
+    if (!files.length) return;
+    const room = max - items.length;
+    if (room <= 0) {
+      window.alert(`最多 ${max} 个附件`);
+      return;
+    }
+    setUploading(true);
+    try {
+      const picked = files.slice(0, room);
+      const urls = await Promise.all(
+        picked.map((f) => resolveLocalMedia(f, kind)),
+      );
+      commit([
+        ...items,
+        ...urls.filter(Boolean).map((url) => ({ kind, url })),
+      ]);
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "上传失败");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className={compact ? "space-y-1.5" : "space-y-2"}>
+      <input
+        ref={fileRef}
+        type="file"
+        accept={acceptForAttachmentKind(pendingKind)}
+        multiple={pendingKind === "image"}
+        disabled={busy || items.length >= max}
+        className="hidden"
+        onChange={(e) => {
+          const files = e.target.files ? Array.from(e.target.files) : [];
+          e.target.value = "";
+          void addFiles(files, pendingKind);
+        }}
+      />
+
+      {items.length > 0 ? (
+        <ul className="space-y-1.5">
+          {items.map((item, index) => (
+            <li
+              key={`${index}-${item.kind}-${item.url.slice(0, 32)}`}
+              className="rounded-md border border-zinc-200 bg-zinc-50/60 p-2"
+            >
+              <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                <select
+                  value={item.kind}
+                  disabled={busy}
+                  onChange={(e) =>
+                    updateAt(index, {
+                      kind: e.target.value as ChatAttachmentKind,
+                    })
+                  }
+                  className="rounded border border-zinc-300 bg-white px-2 py-0.5 text-[11px] text-zinc-700"
+                >
+                  {ATTACHMENT_KIND_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-zinc-600">
+                  {describeAttachment(item)}
+                </span>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => removeAt(index)}
+                  className="shrink-0 rounded border border-zinc-300 bg-white px-2 py-0.5 text-[11px] text-zinc-600 hover:bg-zinc-50 disabled:opacity-50"
+                >
+                  删除
+                </button>
+              </div>
+              {item.kind === "image" && isPreviewableImage(item.url) ? (
+                <ImageHoverThumb
+                  src={item.url}
+                  alt={`附件 ${index + 1}`}
+                  className={`${compact ? "h-14 w-14" : "h-16 w-16"} rounded border border-zinc-200 bg-white object-cover`}
+                />
+              ) : item.kind === "image" ? (
+                <ImageParamControl
+                  value={item.url}
+                  disabled={busy}
+                  onChange={(next) => updateAt(index, { url: next })}
+                  inputClass={inputClass}
+                  compact={compact}
+                />
+              ) : (
+                <input
+                  type="url"
+                  value={item.url}
+                  disabled={busy}
+                  placeholder="公网 URL"
+                  onChange={(e) => updateAt(index, { url: e.target.value })}
+                  className={inputClass}
+                />
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {items.length < max ? (
+        <div className="space-y-1.5 rounded-md border border-dashed border-zinc-300 bg-white p-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] text-zinc-500">添加</span>
+            <select
+              value={pendingKind}
+              disabled={busy}
+              onChange={(e) =>
+                setPendingKind(e.target.value as ChatAttachmentKind)
+              }
+              className="rounded border border-zinc-300 bg-white px-2 py-0.5 text-[11px] text-zinc-700"
+            >
+              {ATTACHMENT_KIND_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => fileRef.current?.click()}
+              className={`rounded-md border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 ${compact ? "px-2 py-0.5 text-[11px]" : "px-3 py-1 text-sm"}`}
+            >
+              {uploading ? "上传中…" : "上传"}
+            </button>
+            <input
+              type="text"
+              value={urlDraft}
+              disabled={busy}
+              placeholder={
+                pendingKind === "image"
+                  ? "或粘贴 URL / data URI 后回车"
+                  : "或粘贴公网 URL 后回车"
+              }
+              onChange={(e) => setUrlDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter") return;
+                e.preventDefault();
+                addItem(pendingKind, urlDraft);
+              }}
+              onBlur={() => {
+                if (urlDraft.trim()) addItem(pendingKind, urlDraft);
+              }}
+              className={`${inputClass} min-w-[10rem] flex-1`}
+            />
+          </div>
+          {objectStorageReady === false && pendingKind !== "image" ? (
+            <p className="text-[10px] text-amber-700/90">
+              视频/文件须公网 URL —{" "}
+              <Link href="/settings" className="underline hover:text-amber-900">
+                去设置对象存储
+              </Link>
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {hint ? (
+        <p className={`text-zinc-400 ${compact ? "text-[10px]" : "text-[11px]"}`}>
+          {hint}
+          {items.length > 0 ? (
+            <span className="text-zinc-500">
+              {" "}
+              · 已添加 {items.length}/{max}
+            </span>
+          ) : null}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 type ImagePairMode = "none" | "ref" | "pair" | "refs";
 
 function deriveImagePairMode(
@@ -1347,6 +1711,8 @@ export function RunParamsFields({
   objectStorageReady,
   /** Denser layout for image/video left rail. */
   compact,
+  /** Hide specific param keys (e.g. chat_attachments shown inline on text run page). */
+  excludeKeys,
 }: {
   modality: string;
   values: Record<string, string>;
@@ -1361,6 +1727,7 @@ export function RunParamsFields({
   apiFormat?: string | null;
   objectStorageReady?: boolean | null;
   compact?: boolean;
+  excludeKeys?: readonly string[];
 }) {
   const providerHint = resolveProviderHint(provider, modelId, baseUrl, name);
   const formatFields = fieldsForApiFormat(apiFormat);
@@ -1394,9 +1761,14 @@ export function RunParamsFields({
         return true;
       });
 
+  const excluded = new Set(excludeKeys ?? []);
+  const visibleFields = excluded.size
+    ? fields.filter((f) => !excluded.has(f.key))
+    : fields;
+
   // Snap invalid selects; clamp range when model max changes (e.g. 2.5 → 2.0).
   useEffect(() => {
-    for (const field of fields) {
+    for (const field of visibleFields) {
       if (field.type === "range") {
         const { min, max } = rangeBounds(field, modelId);
         const raw = values[field.key] ?? field.defaultValue;
@@ -1431,17 +1803,18 @@ export function RunParamsFields({
         onChange(field.key, preferred.value);
       }
     }
-  }, [fields, values, onChange, providerHint, useFormat, modelId]);
+  }, [visibleFields, values, onChange, providerHint, useFormat, modelId]);
 
-  if (fields.length === 0) return null;
+  if (visibleFields.length === 0) return null;
 
   const inputClass = "md-control md-control-sm";
   // Only show the object-storage tip once across image / image_list / image_pair.
-  const firstImageFieldKey = fields.find(
+  const firstImageFieldKey = visibleFields.find(
     (f) =>
       f.type === "image" ||
       f.type === "image_list" ||
-      f.type === "image_pair",
+      f.type === "image_pair" ||
+      f.type === "attachment_list",
   )?.key;
 
   return (
@@ -1454,7 +1827,7 @@ export function RunParamsFields({
       <div
         className={`grid ${compact ? "grid-cols-3 gap-x-1.5 gap-y-1" : "grid-cols-2 gap-x-2 gap-y-1.5"}`}
       >
-        {fields.map((field) => {
+        {visibleFields.map((field) => {
           const options = filterFieldOptions(
             field.options,
             providerHint,
@@ -1500,11 +1873,13 @@ export function RunParamsFields({
             field.type === "image" ||
             field.type === "image_list" ||
             field.type === "image_pair" ||
+            field.type === "attachment_list" ||
             field.type === "audio";
           const showStorageTip =
             (field.type === "image" ||
               field.type === "image_list" ||
-              field.type === "image_pair") &&
+              field.type === "image_pair" ||
+              field.type === "attachment_list") &&
             objectStorageReady === false &&
             field.key === firstImageFieldKey;
 
@@ -1636,6 +2011,17 @@ export function RunParamsFields({
                 max={field.max ?? 4}
                 compact={compact}
               />
+            ) : field.type === "attachment_list" ? (
+              <ChatAttachmentsField
+                value={value}
+                disabled={fieldDisabled}
+                hint={fieldHint}
+                onChange={(next) => onChange(field.key, next)}
+                inputClass={inputClass}
+                max={field.max ?? 9}
+                compact={compact}
+                objectStorageReady={objectStorageReady}
+              />
             ) : field.type === "image_pair" && endKey ? (
               <ImagePairParamControl
                 key={`pair-${apiFormat ?? modality}-${modelId ?? ""}-${field.key}-${endKey}-${field.listKey ?? ""}-${field.audioListKey ?? ""}`}
@@ -1689,7 +2075,8 @@ export function RunParamsFields({
           const FieldTag =
             field.type === "image" ||
             field.type === "image_list" ||
-            field.type === "image_pair"
+            field.type === "image_pair" ||
+            field.type === "attachment_list"
               ? "div"
               : "label";
 
@@ -1739,7 +2126,8 @@ export function RunParamsFields({
                 !compact &&
                 (field.type === "image" ||
                   field.type === "image_list" ||
-                  field.type === "image_pair") ? (
+                  field.type === "image_pair" ||
+                  field.type === "attachment_list") ? (
                 <span className="mt-0.5 block text-[10px] text-zinc-400">
                   {fieldHint}
                 </span>

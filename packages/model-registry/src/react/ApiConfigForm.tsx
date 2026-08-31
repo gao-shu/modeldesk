@@ -51,6 +51,7 @@ export function suggestedConfigName(
   }
   if (id.startsWith("glm-") && !id.startsWith("glm-image")) {
     if (id === "glm-4.7-flash") return "智谱 GLM-4.7 Flash（免费）";
+    if (id === "glm-4.6v-flash") return "智谱 GLM-4.6V-Flash（免费 · 多模态）";
     return raw ? `智谱 ${raw}` : "智谱";
   }
 

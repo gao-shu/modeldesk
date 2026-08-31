@@ -6,9 +6,11 @@
 
 import fs from "node:fs";
 import {
+  chatMessagesToStoragePrompt,
   resolveApiFormatId,
   resolveRunParamsForFormat,
 } from "@modeldesk/shared";
+import type { ChatMessage } from "@modeldesk/adapters";
 import { getArtifact } from "@/lib/server/artifacts";
 import {
   executeModelJob,
@@ -94,6 +96,8 @@ export type RunSingleModelInput = {
   temperature?: number | null;
   maxTokens?: number | null;
   params?: Record<string, unknown> | null;
+  /** OpenAI-shaped messages (gateway multimodal). */
+  messages?: ChatMessage[] | null;
   suiteId?: string | null;
   caseId?: string | null;
   signal?: AbortSignal | null;
@@ -229,9 +233,14 @@ export async function runSingleModel(
   const maxTokens =
     typeof params.max_tokens === "number" ? params.max_tokens : null;
 
+  const prompt =
+    input.messages && input.messages.length > 0
+      ? chatMessagesToStoragePrompt(input.messages) || input.prompt
+      : input.prompt;
+
   const { run, job } = createSingleRun({
     modelId: row.id,
-    prompt: input.prompt,
+    prompt,
     temperature,
     maxTokens,
     params,
@@ -278,10 +287,11 @@ export async function runSingleModel(
     jobId: job.id,
     row,
     apiKey: apiKey ?? "mock",
-    prompt: input.prompt,
+    prompt,
     temperature,
     maxTokens,
     params,
+    messages: input.messages,
     signal,
     onEvent: input.onEvent,
   });

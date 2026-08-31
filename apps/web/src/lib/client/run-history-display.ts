@@ -1,8 +1,26 @@
 import {
+  CHAT_ATTACHMENTS_PARAM_KEY,
   fieldsForApiFormat,
+  parseChatAttachmentsFromParams,
   RUN_PARAM_FIELDS_BY_MODALITY,
   type RunParamModality,
 } from "@modeldesk/shared";
+
+function formatAttachmentListPreview(raw: string): string | null {
+  const items = parseChatAttachmentsFromParams({
+    [CHAT_ATTACHMENTS_PARAM_KEY]: raw,
+  });
+  if (items.length === 0) return null;
+  const counts = { image: 0, video: 0, file: 0 };
+  for (const item of items) {
+    counts[item.kind] += 1;
+  }
+  const parts: string[] = [];
+  if (counts.image > 0) parts.push(`${counts.image} 图`);
+  if (counts.video > 0) parts.push(`${counts.video} 视频`);
+  if (counts.file > 0) parts.push(`${counts.file} 文件`);
+  return parts.length > 0 ? parts.join(" · ") : `${items.length} 附件`;
+}
 
 /** Compact human-readable params for history tables. */
 export function formatRunParamsPreview(
@@ -49,6 +67,11 @@ export function formatRunParamsPreview(
     if (f.type === "boolean") {
       const on = raw === true || raw === "true" || raw === 1 || raw === "1";
       if (on) parts.push(f.label);
+      continue;
+    }
+    if (f.type === "attachment_list") {
+      const preview = formatAttachmentListPreview(String(raw));
+      if (preview) parts.push(preview);
       continue;
     }
     const str = String(raw);

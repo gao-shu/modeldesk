@@ -21,6 +21,8 @@ export type RunParamFieldType =
   | "image"
   /** Multi reference images as JSON string array. */
   | "image_list"
+  /** VLM chat attachments as JSON [{ kind, url }] (image / video / file). */
+  | "attachment_list"
   /**
    * Video reference input with modes: none / single ref / first+last frame.
    * Primary value uses `key`; optional end frame uses `endKey`.
@@ -51,7 +53,7 @@ export type RunParamField = {
   defaultValue: string;
   options?: readonly RunParamOption[];
   min?: number;
-  /** Number input max, or max items for image_list. */
+  /** Number input max, or max items for image_list / attachment_list. */
   max?: number;
   step?: number;
   /** Hint under the control */

@@ -176,3 +176,16 @@ export async function ensurePublicVoiceUrl(
   if (/^https?:\/\//i.test(v)) return v;
   return getObjectStorage().ensurePublicUrl(v, { kind: "voice" });
 }
+
+/** VLM chat attachments — map kind to object-storage MediaKind for upload. */
+export async function ensurePublicChatAttachmentUrl(
+  value: string | undefined | null,
+  kind: "image" | "video" | "file" = "image",
+): Promise<string | undefined> {
+  if (!value?.trim()) return undefined;
+  const v = value.trim();
+  if (/^https?:\/\//i.test(v)) return v;
+  const mediaKind =
+    kind === "video" ? "video" : kind === "file" ? "voice" : "image";
+  return getObjectStorage().ensurePublicUrl(v, { kind: mediaKind });
+}

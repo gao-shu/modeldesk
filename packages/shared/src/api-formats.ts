@@ -71,6 +71,31 @@ const TEXT_CHAT_FIELDS: readonly RunParamField[] = [
   },
 ];
 
+/** GLM-4.6V 等多模态文本：附件与 thinking（UI 阶段 4 接 upload；params 契约先行）。 */
+const TEXT_VLM_ZHIPU_FIELDS: readonly RunParamField[] = [
+  {
+    key: "chat_attachments",
+    label: "对话附件",
+    type: "attachment_list",
+    defaultValue: "",
+    max: 9,
+    models: ["4.6v", "vl"],
+    hint: "VLM 多模态：图片 / 视频 / 文件；图片可 base64，视频与文件需对象存储公网 URL",
+  },
+  {
+    key: "thinking",
+    label: "深度思考",
+    type: "select",
+    defaultValue: "disabled",
+    models: ["4.6v"],
+    options: [
+      { value: "disabled", label: "关闭" },
+      { value: "enabled", label: "开启" },
+    ],
+    hint: "智谱 GLM-4.6V · thinking.type",
+  },
+];
+
 const ASPECT_COMMON: RunParamField = {
   key: "aspect_ratio",
   label: "画幅",
@@ -658,11 +683,12 @@ export const API_FORMATS: readonly ApiFormatDef[] = [
     tier: "core",
     suggestedBaseUrl: "https://open.bigmodel.cn/api/paas/v4",
     suggestedModelId: "glm-5.2",
-    modelOptions: ["glm-5.2", "glm-5.1", "glm-5", "glm-4.7-flash"],
+    modelOptions: ["glm-5.2", "glm-5.1", "glm-5", "glm-4.7-flash", "glm-4.6v-flash"],
     modelOptionLabels: {
       "glm-4.7-flash": "glm-4.7-flash（免费）",
+      "glm-4.6v-flash": "glm-4.6v-flash（免费 · 多模态）",
     },
-    fields: TEXT_CHAT_FIELDS,
+    fields: [...TEXT_CHAT_FIELDS, ...TEXT_VLM_ZHIPU_FIELDS],
   },
   {
     id: "text.openai",

@@ -9,6 +9,7 @@ export const ADAPTERS_STATUS: AdapterStatus = "ready";
 export {
   chatCompletion,
   streamChatCompletion,
+  redactChatMessagesForHttpLog,
   type ChatMessage,
   type ChatUsage,
   type NonStreamChatResult,

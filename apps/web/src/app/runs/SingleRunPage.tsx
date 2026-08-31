@@ -3,6 +3,9 @@
 import {
   buildInitialRunParams,
   buildParamsForApiFormat,
+  CHAT_ATTACHMENTS_PARAM_KEY,
+  fieldsForApiFormat,
+  parseChatAttachmentsFromParams,
   pickRunParamsForApiFormat,
   resolveApiFormatId,
   type Modality,
@@ -16,7 +19,7 @@ import { ImagePreviewModal } from "@/components/ImagePreviewModal";
 import { RequestLogModal } from "@/components/RequestLogModal";
 import { HistoryPager, PAGE_SIZE } from "@/components/HistoryPager";
 import { PromptPresetSelect } from "@/components/PromptPresetSelect";
-import { RunParamsFields } from "@/components/RunParamsFields";
+import { RunParamsFields, ChatAttachmentsField } from "@/components/RunParamsFields";
 import { formatCost } from "@/lib/client/sse";
 import { defaultPromptForModality } from "@/lib/client/default-prompts";
 import {
@@ -787,6 +790,41 @@ export function SingleRunPage({ modality }: { modality: Modality }) {
       })
     : null;
 
+  const hasChatAttachments = useMemo(() => {
+    if ((selected?.modality ?? modality) !== "text") return false;
+    return (
+      parseChatAttachmentsFromParams({
+        [CHAT_ATTACHMENTS_PARAM_KEY]: runParams.chat_attachments ?? "",
+      }).length > 0
+    );
+  }, [selected?.modality, modality, runParams.chat_attachments]);
+
+  const showVlmAttachments = useMemo(() => {
+    if ((selected?.modality ?? modality) !== "text" || !selectedApiFormat) {
+      return false;
+    }
+    const mid = (selected?.modelId ?? selected?.name ?? "").toLowerCase();
+    const formatFields = fieldsForApiFormat(selectedApiFormat);
+    return formatFields.some(
+      (f) =>
+        f.key === CHAT_ATTACHMENTS_PARAM_KEY &&
+        f.type === "attachment_list" &&
+        (!f.models?.length ||
+          f.models.some((token) => mid.includes(token.toLowerCase()))),
+    );
+  }, [
+    selected?.modality,
+    selected?.modelId,
+    selected?.name,
+    modality,
+    selectedApiFormat,
+  ]);
+
+  const canStartRun =
+    Boolean(modelId) &&
+    !atConcurrencyLimit &&
+    (Boolean(prompt.trim()) || hasChatAttachments);
+
   useEffect(() => {
     if (models.length === 0) {
       setModelId("");
@@ -798,7 +836,7 @@ export function SingleRunPage({ modality }: { modality: Modality }) {
   }, [models, modelId]);
 
   async function startRun() {
-    if (!modelId || !prompt.trim() || atConcurrencyLimit) return;
+    if (!canStartRun) return;
     const modality = selected?.modality ?? "text";
     const params = selectedApiFormat
       ? pickRunParamsForApiFormat(selectedApiFormat, runParams)
@@ -1254,7 +1292,11 @@ export function SingleRunPage({ modality }: { modality: Modality }) {
                   onChange={(e) => setPrompt(e.target.value)}
                   style={{ height: promptHeight }}
                   className={`w-full resize-none border-0 bg-white px-3.5 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 ${compactLeft ? "py-2.5 leading-snug" : "py-3 leading-relaxed"}`}
-                  placeholder="输入提示词…"
+                  placeholder={
+                    showVlmAttachments
+                      ? "输入提示词，或仅添加附件后运行…"
+                      : "输入提示词…"
+                  }
                 />
                 <div
                   role="separator"
@@ -1266,6 +1308,31 @@ export function SingleRunPage({ modality }: { modality: Modality }) {
                 >
                   <span className="h-0.5 w-10 rounded-full bg-zinc-300" />
                 </div>
+                {showVlmAttachments ? (
+                  <div
+                    className={`border-t border-zinc-100 px-3.5 ${compactLeft ? "py-2" : "py-3"}`}
+                  >
+                    <p
+                      className={`mb-1.5 font-medium text-zinc-700 ${compactLeft ? "text-[11px]" : "text-xs"}`}
+                    >
+                      对话附件
+                    </p>
+                    <ChatAttachmentsField
+                      value={runParams.chat_attachments ?? ""}
+                      onChange={(next) =>
+                        setRunParams((prev) => ({
+                          ...prev,
+                          chat_attachments: next,
+                        }))
+                      }
+                      objectStorageReady={objectStorageReady}
+                      compact={compactLeft}
+                      inputClass="md-control md-control-sm"
+                      max={9}
+                      hint="图片可本地上传或 base64；视频/文件需对象存储公网 URL"
+                    />
+                  </div>
+                ) : null}
                 <div className="border-t border-zinc-100">
                   <button
                     type="button"
@@ -1291,6 +1358,11 @@ export function SingleRunPage({ modality }: { modality: Modality }) {
                         name={selected?.name}
                         objectStorageReady={objectStorageReady}
                         compact={compactLeft}
+                        excludeKeys={
+                          showVlmAttachments
+                            ? [CHAT_ATTACHMENTS_PARAM_KEY]
+                            : undefined
+                        }
                         onChange={(key, value) =>
                           setRunParams((prev) => ({ ...prev, [key]: value }))
                         }
@@ -1305,7 +1377,7 @@ export function SingleRunPage({ modality }: { modality: Modality }) {
               >
                 <button
                   type="button"
-                  disabled={atConcurrencyLimit || !modelId || !prompt.trim()}
+                  disabled={!canStartRun}
                   onClick={() => void startRun()}
                   className={`w-full rounded-md bg-zinc-900 px-5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50 ${compactLeft ? "py-2" : "py-2.5"}`}
                 >
