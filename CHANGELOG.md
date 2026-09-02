@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/) when tagg
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-09-02
+
+### Added
+
+- Agnes Image：`agnes-image-2.5-flash` / `2.1` / `2.0` 均可在模型配置选择
+- Agnes Video 2.5 Flash 适配
+- 拾光 MiniMax-H3 视频中转（多参 `content[]`）
+- VLM 对话附件（文本 run / Gateway chat）
+- 宝塔 Docker 部署脚本（仅本机回环绑定）
+
+### Changed
+
+- Grok 视频：去掉过时 `grok-imagine-video`；默认 / 多参考用 `1.5` 系；补拾光常见别名
+- 中转视频 / 对象存储（七牛）与相关文档整理
+
 ## [0.2.2] - 2026-08-25
 
 ### Added
