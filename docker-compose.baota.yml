@@ -1,0 +1,8 @@
+# Baota / production: bind web port on loopback only — expose via Nginx reverse proxy.
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.baota.yml --env-file .env.docker up -d
+
+services:
+  web:
+    ports:
+      - "127.0.0.1:${WEB_HOST_PORT:-3020}:3020"
