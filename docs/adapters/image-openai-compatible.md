@@ -7,7 +7,7 @@
 | `api_format` | `image.openai-compatible` |
 | Modality | `image` |
 | Tier | `core` |
-| 建议 Base URL | （用户自填，常含 `/v1`） |
+| 建议 Base URL | `https://ark.cn-beijing.volces.com/api/v3`（火山方舟 OpenAI 兼容；勿填 `api.openai.com`） |
 | 典型 Model ID | `gpt-image-2` 等 |
 | 代码入口 | `api-formats.ts` · `images.ts`（openai 方言） |
 | 适配度 | 部分对齐 |
@@ -35,6 +35,7 @@
 
 ## 已知坑
 
+- 国内常用火山方舟根地址 `https://ark.cn-beijing.volces.com/api/v3`；官方 OpenAI 请选 `image.openai`，不要在本 format 填 `api.openai.com`。
 - 严格中转（`unknown field`）只能发上游认识的字段；兼容路径 JSON 参考图只发 `image_urls`。
 - 异步中转请改用 `image.openai-async`（同一套 `image_urls` 精简）。
 - edits：有本地/可编码文件走 multipart `image`；仅公网 URL 且无文件时用 `image_urls[]`。

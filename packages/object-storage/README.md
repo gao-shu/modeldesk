@@ -20,4 +20,4 @@ pnpm --filter @modeldesk/object-storage test
 STORAGE_PROVIDER=s3 pnpm --filter @modeldesk/object-storage smoke:s3
 ```
 
-See repo root README · 对象存储 and `.env.example`.
+See repo root README · 对象存储、[docs/user-guide.md §2.3](../../docs/user-guide.md)（新电脑 · 七牛步骤）与 `.env.example`。

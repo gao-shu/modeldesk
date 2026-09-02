@@ -55,14 +55,33 @@
 
 ### 2.3 对象存储（可选）
 
-部分上游（尤其视频图生 / 多参考）**不接受本地 Base64**，需要公网 URL。
+部分上游（尤其视频图生 / 多参考，如拾光 MiniMax H3）**不接受本地 Base64**，需要公网 URL。本地图会经对象存储上传后，把 `https://…` 交给上游。
 
-1. 打开「对象存储」开关  
-2. 选择厂商（如火山 TOS）  
-3. 按输入框**假数据占位**填写 Bucket / Region / Endpoint / Key（真实密钥勿提交到 Git）  
-4. **保存配置** → **测试**
+#### 操作步骤（新电脑）— 推荐七牛 Kodo
 
-未开启时：本地图可能以 data URI 直传，中转站容易 `400 Error when parsing request`。
+1. 打开 **系统设置** → 先完成 **2.1 加密密钥**（未配置则点「生成加密密钥」）  
+2. 打开「**启用对象存储**」开关  
+3. 提供商选 **七牛 Kodo**（未保存过配置时，页面会预填下方非密钥字段）  
+4. 按表核对后填入 **Access Key / Secret Key**（只填本机，勿提交 Git）  
+
+| 字段 | 建议值 |
+|------|--------|
+| 启用对象存储 | 开 |
+| 提供商 | 七牛 Kodo (`qiniu`) |
+| Bucket | `images-temp` |
+| Region | `cn-north-1` |
+| Endpoint | `s3.cn-north-1.qiniucs.com` |
+| 公网访问域名 | `https://img.learncom.cn`（须 HTTPS，末尾不要 `/`） |
+| Force Path Style | 关 |
+| Skip ACL | 开（Kodo 常用） |
+| Access Key / Secret Key | 七牛控制台密钥（勿写入仓库 / Issue） |
+
+5. 点 **保存配置** → **测试**（应返回以公网域名开头的测试 URL）  
+6. 再到 **实测 → 视频** 本地上传参考图；请求体里应是 `https://img.learncom.cn/…`，而不是 `data:image/…`
+
+其它厂商（火山 TOS / S3 / OSS 等）同样：开开关 → 选提供商 → 按输入框占位填写 → 保存 → 测试。
+
+未开启或未配齐时：本地图可能仍以 data URI 直传，中转易出现上传失败或 `400`。
 
 ### 2.4 外部调用
 

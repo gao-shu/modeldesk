@@ -164,7 +164,19 @@ export async function ensurePublicImageUrl(
   if (!value?.trim()) return undefined;
   const v = value.trim();
   if (/^https?:\/\//i.test(v)) return v;
-  return getObjectStorage().ensurePublicUrl(v, { kind: "image" });
+  const prefs = getObjectStoragePrefs();
+  const storage = getObjectStorage();
+  // 开关开着但凭证未就绪时，勿静默回传 data URI（否则视频会误走中转 /files）
+  if (
+    prefs.enabled &&
+    !storage.isConfigured() &&
+    (v.startsWith("data:") || (v.length >= 64 && !/\s/.test(v)))
+  ) {
+    throw new Error(
+      `对象存储已开启（${prefs.provider}），但凭证未就绪：请在「系统设置 → 对象存储」保存 Bucket / AccessKey / SecretKey（及公网域名）后再本地上传。`,
+    );
+  }
+  return storage.ensurePublicUrl(v, { kind: "image" });
 }
 
 /** Public HTTPS for Seedance reference_audio (object-storage kind=voice). */

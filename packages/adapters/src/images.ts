@@ -1126,7 +1126,10 @@ function friendlyHttpError(status: number, body: string, requestUrl?: string): s
     return `Authentication failed (${status}). Check API key.${where}`;
   }
   if (status === 404) {
-    return `Endpoint not found (404). Check base URL（即梦官方需 …/api/v3，不是 /v1 或 /v3）。${
+    const arkHint = requestUrl && /volces\.com|volcengine/i.test(requestUrl)
+      ? "即梦/方舟官方需 …/api/v3（不是裸 /v1 或 /v3）。"
+      : "高级模式请填完整提交地址（如 …/v1/images/generations），或改用简单模式只填 API 根（…/v1）。";
+    return `Endpoint not found (404). Check base URL。${arkHint}${
       snippet ? ` ${snippet}` : ""
     }${where}`;
   }

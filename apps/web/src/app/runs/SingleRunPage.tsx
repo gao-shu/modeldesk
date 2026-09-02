@@ -1096,9 +1096,27 @@ export function SingleRunPage({ modality }: { modality: Modality }) {
         }
       }
       if (refs.length > 0) {
-        body.input_reference = refs.length === 1 ? refs[0] : refs;
-        if (seedanceRelay) body.confirm_no_human_reference = "true";
-        if (minimaxH3Relay) body._multipart = true;
+        if (minimaxH3Relay) {
+          // 实际请求是 JSON content[]，不是 Seedance 的 multipart input_reference
+          const multi =
+            Array.isArray(params.reference_images) ||
+            (typeof params.reference_images === "string" &&
+              params.reference_images.trim().startsWith("["));
+          body.content = refs.map((url, i) => ({
+            type: "image_url",
+            image_url: { url },
+            role: multi
+              ? "reference_image"
+              : i === 0 && refs.length === 1
+                ? "first_frame"
+                : i === 0
+                  ? "first_frame"
+                  : "last_frame",
+          }));
+        } else {
+          body.input_reference = refs.length === 1 ? refs[0] : refs;
+          if (seedanceRelay) body.confirm_no_human_reference = "true";
+        }
       }
       if (minimaxH3Relay) {
         const aspect =

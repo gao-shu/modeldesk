@@ -48,7 +48,7 @@ ModelDesk 用 **`api_format`** 描述「怎么调厂商接口」。本目录是�
 | `image.volcengine-seedream` | [image-volcengine-seedream.md](./image-volcengine-seedream.md) | core | 待校验 | 2026-08-10 |
 | `image.dashscope-wanxiang` | [image-dashscope-wanxiang.md](./image-dashscope-wanxiang.md) | core | 部分对齐 | 2026-08-11 |
 | `image.zhipu-cogview` | [image-zhipu-cogview.md](./image-zhipu-cogview.md) | core | 部分对齐 | 2026-08-10 |
-| `image.agnes` | [image-agnes.md](./image-agnes.md) | core | 部分对齐 | 2026-08-10 |
+| `image.agnes` | [image-agnes.md](./image-agnes.md) | core | 部分对齐 | 2026-09-01 |
 | `image.openai` | [image-openai.md](./image-openai.md) | core | 待校验 | 2026-08-10 |
 | `image.google-nano-banana` | [image-google-nano-banana.md](./image-google-nano-banana.md) | core | 待校验 | 2026-08-10 |
 | `image.openai-compatible` | [image-openai-compatible.md](./image-openai-compatible.md) | core | 部分对齐 | 2026-08-13 |
@@ -65,7 +65,7 @@ ModelDesk 用 **`api_format`** 描述「怎么调厂商接口」。本目录是�
 | `video.volcengine-seedance` | [video-volcengine-seedance.md](./video-volcengine-seedance.md) | core | 部分对齐 | 2026-08-10 |
 | `video.kling` | [video-kling.md](./video-kling.md) | core | 部分对齐 | 2026-08-11 |
 | `video.minimax-hailuo` | [video-minimax-hailuo.md](./video-minimax-hailuo.md) | core | 部分对齐 | 2026-08-13 |
-| `video.minimax-h3-relay` | [video-minimax-h3-relay.md](./video-minimax-h3-relay.md) | core | 部分对齐 | 2026-08-30 |
+| `video.minimax-h3-relay` | [video-minimax-h3-relay.md](./video-minimax-h3-relay.md) | core | 部分对齐 | 2026-09-01 |
 | `video.seedance-relay` | — | core | 部分对齐 | 2026-08-30 |
 | `video.vidu` | [video-vidu.md](./video-vidu.md) | core | 部分对齐 | 2026-08-11 |
 | `video.zhipu-cogvideox` | [video-zhipu-cogvideox.md](./video-zhipu-cogvideox.md) | core | 待校验 | 2026-08-10 |
@@ -75,7 +75,7 @@ ModelDesk 用 **`api_format`** 描述「怎么调厂商接口」。本目录是�
 | `video.openai-videos` | [video-openai.md](./video-openai.md) | core | 部分对齐 | 2026-08-12 |
 | `video.openai-compatible` | [video-openai.md](./video-openai.md) | core | 部分对齐 | 2026-08-12 |
 | `video.openai-generations` | [video-openai.md](./video-openai.md) | extended | 部分对齐 | 2026-08-12 |
-| `video.grok` | [video-grok.md](./video-grok.md) | core | 部分对齐 | 2026-08-11 |
+| `video.grok` | [video-grok.md](./video-grok.md) | core | 部分对齐 | 2026-09-01 |
 | `video.mock` | — | extended | 内部 | — |
 
 ### Audio / Music
