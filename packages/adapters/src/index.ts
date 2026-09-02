@@ -42,7 +42,6 @@ export {
   generateVideo,
   buildSeedanceRelayForm,
   buildMinimaxH3RelaySubmit,
-  uploadMinimaxH3RelayReferenceFile,
   normalizeMinimaxH3RelayResolution,
   resolveMinimaxH3RelaySize,
   buildAgnes25FlashSubmitBody,

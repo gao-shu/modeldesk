@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useState } from "react";
 
 interface RequestLogModalProps {
   log: { url: string; body: Record<string, unknown> } | null;
@@ -8,6 +8,8 @@ interface RequestLogModalProps {
 }
 
 export function RequestLogModal({ log, onClose }: RequestLogModalProps) {
+  const [copied, setCopied] = useState(false);
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -20,9 +22,24 @@ export function RequestLogModal({ log, onClose }: RequestLogModalProps) {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
+  useEffect(() => {
+    setCopied(false);
+  }, [log]);
+
   if (!log) return null;
 
   const isMultipart = log.body._multipart === true;
+  const bodyText = JSON.stringify(log.body, null, 2);
+
+  async function copyBody() {
+    try {
+      await navigator.clipboard.writeText(bodyText);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* ignore — user can still select manually */
+    }
+  }
 
   return (
     <div
@@ -77,9 +94,18 @@ export function RequestLogModal({ log, onClose }: RequestLogModalProps) {
             <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-400">
               Body{isMultipart ? "（字段摘要）" : ""}
             </span>
-            <pre className="mt-1 max-h-96 overflow-auto rounded border border-zinc-200 bg-zinc-50 p-3 font-mono whitespace-pre-wrap text-zinc-800">
-              {JSON.stringify(log.body, null, 2)}
-            </pre>
+            <div className="relative mt-1">
+              <button
+                type="button"
+                onClick={copyBody}
+                className="absolute right-2 top-2 z-10 rounded-md border border-zinc-200 bg-white px-2 py-1 text-[11px] text-zinc-600 shadow-sm hover:bg-zinc-50 hover:text-zinc-900"
+              >
+                {copied ? "已复制" : "复制"}
+              </button>
+              <pre className="max-h-96 overflow-auto rounded border border-zinc-200 bg-zinc-50 p-3 pr-16 font-mono whitespace-pre-wrap text-zinc-800">
+                {bodyText}
+              </pre>
+            </div>
           </div>
         </div>
       </div>

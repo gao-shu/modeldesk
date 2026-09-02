@@ -75,6 +75,24 @@ describe("minimax-h3-relay", () => {
     ]);
   });
 
+  it("passes through local data URI without /files upload", async () => {
+    const dataUri = "data:image/png;base64,AAAA";
+    const payload = await buildMinimaxH3RelaySubmit({
+      model: "MiniMax-H3",
+      prompt: "boat",
+      referenceImage: dataUri,
+    });
+    assert.equal(payload.mode, "json");
+    if (payload.mode !== "json") return;
+    assert.deepEqual(payload.body.content, [
+      {
+        type: "image_url",
+        image_url: { url: dataUri },
+        role: "first_frame",
+      },
+    ]);
+  });
+
   it("builds content[] for first+last frames", async () => {
     const payload = await buildMinimaxH3RelaySubmit({
       model: "MiniMax-H3",

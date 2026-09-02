@@ -166,7 +166,7 @@ export async function ensurePublicImageUrl(
   if (/^https?:\/\//i.test(v)) return v;
   const prefs = getObjectStoragePrefs();
   const storage = getObjectStorage();
-  // 开关开着但凭证未就绪时，勿静默回传 data URI（否则视频会误走中转 /files）
+  // 开关开着但凭证未就绪：明确报错，避免误以为已上传到公网
   if (
     prefs.enabled &&
     !storage.isConfigured() &&

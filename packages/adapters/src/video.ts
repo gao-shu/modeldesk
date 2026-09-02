@@ -1045,10 +1045,6 @@ export async function buildMinimaxH3RelaySubmit(opts: {
   referenceImageEnd?: string;
   referenceImages?: string[];
   referenceAudios?: string[];
-  /** API 根（…/v1），用于上传本地参考图 */
-  uploadBaseUrl?: string;
-  apiKey?: string;
-  signal?: AbortSignal;
 }): Promise<VideoSubmitPayload> {
   const seconds = Math.min(
     15,
@@ -1099,63 +1095,47 @@ export async function buildMinimaxH3RelaySubmit(opts: {
     role: string;
   };
 
+  // 参考媒体原样下发（https / file_id / data URI）。是否支持 base64 由上游决定；
+  // 公网 URL 仍由上层 ensurePublicImageUrl（对象存储开启时）负责。
   const content: ContentItem[] = [];
-  const resolveMedia = async (raw: string): Promise<string> => {
-    if (isHttpUrl(raw) || /^file[_-]/i.test(raw)) return raw;
-    if (!opts.uploadBaseUrl || !opts.apiKey) {
-      throw new Error(
-        "拾光 MiniMax H3 参考图须为公网 HTTPS URL。请到「系统设置」开启对象存储（七牛等）后本地上传，或直接粘贴公网链接。",
-      );
-    }
-    // 兜底：未走对象存储时再试 New API /files（须带 model）
-    return uploadMinimaxH3RelayReferenceFile({
-      baseUrl: opts.uploadBaseUrl,
-      apiKey: opts.apiKey,
-      model: opts.model,
-      ref: raw,
-      signal: opts.signal,
-    });
-  };
 
   if (multiRefs.length > 0) {
     for (const ref of multiRefs) {
-      const url = await resolveMedia(ref);
       content.push({
         type: "image_url",
-        image_url: { url },
+        image_url: { url: ref },
         role: "reference_image",
       });
     }
   } else if (first && last) {
     content.push({
       type: "image_url",
-      image_url: { url: await resolveMedia(first) },
+      image_url: { url: first },
       role: "first_frame",
     });
     content.push({
       type: "image_url",
-      image_url: { url: await resolveMedia(last) },
+      image_url: { url: last },
       role: "last_frame",
     });
   } else if (first) {
     content.push({
       type: "image_url",
-      image_url: { url: await resolveMedia(first) },
+      image_url: { url: first },
       role: "first_frame",
     });
   } else if (last) {
     content.push({
       type: "image_url",
-      image_url: { url: await resolveMedia(last) },
+      image_url: { url: last },
       role: "last_frame",
     });
   }
 
   for (const ref of audioRefs) {
-    const url = await resolveMedia(ref);
     content.push({
       type: "audio_url",
-      audio_url: { url },
+      audio_url: { url: ref },
       role: "reference_audio",
     });
   }
@@ -1167,75 +1147,6 @@ export async function buildMinimaxH3RelaySubmit(opts: {
       content,
     },
   };
-}
-
-/**
- * POST /files · purpose=video_reference → file_id。
- * New API 要求 multipart 里带 model；公网 URL / file_id 原样返回。
- * 优先路径仍是对象存储公网 URL（ensurePublicImageUrl），本函数仅兜底。
- */
-export async function uploadMinimaxH3RelayReferenceFile(opts: {
-  baseUrl: string;
-  apiKey: string;
-  model: string;
-  ref: string;
-  signal?: AbortSignal;
-}): Promise<string> {
-  const trimmed = opts.ref.trim();
-  if (!trimmed) throw new Error("参考媒体不能为空");
-  if (isHttpUrl(trimmed) || /^file[_-]/i.test(trimmed)) return trimmed;
-
-  const parsed = parseVideoDataUri(trimmed);
-  if (!parsed && !isDataUriOrRawBase64(trimmed)) {
-    return trimmed;
-  }
-
-  const mime = parsed?.mime ?? "image/jpeg";
-  const bytes =
-    parsed?.bytes ??
-    Buffer.from(trimmed.replace(/^data:[^;]+;base64,/i, ""), "base64");
-  const ext = videoMimeToExt(mime);
-  const root = normalizeBaseUrl(opts.baseUrl).replace(/\/videos$/i, "");
-  // New API 渠道路由常在解析 multipart 前读 query；form 里也带一份
-  const modelName = (opts.model || "MiniMax-H3").trim() || "MiniMax-H3";
-  const url = `${root}/files?model=${encodeURIComponent(modelName)}`;
-  const form = new FormData();
-  form.append("model", modelName);
-  form.append("purpose", "video_reference");
-  form.append(
-    "file",
-    new Blob([new Uint8Array(bytes)], { type: mime }),
-    `ref.${ext}`,
-  );
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${opts.apiKey}` },
-    body: form,
-    signal: opts.signal,
-  });
-  const text = await response.text();
-  if (!response.ok) {
-    throw new Error(
-      `拾光参考图上传失败 (${response.status}): ${text.slice(0, 300)}。参考图仍是本地 data URI（对象存储未生效）。请到「系统设置 → 对象存储」启用七牛并保存 AccessKey/SecretKey/公网域名后再本地上传。`,
-    );
-  }
-  let parsedJson: unknown;
-  try {
-    parsedJson = JSON.parse(text) as unknown;
-  } catch {
-    throw new Error("拾光参考图上传返回非 JSON");
-  }
-  const id =
-    parsedJson &&
-    typeof parsedJson === "object" &&
-    typeof (parsedJson as { id?: unknown }).id === "string"
-      ? (parsedJson as { id: string }).id.trim()
-      : "";
-  if (!id) {
-    throw new Error("拾光参考图上传未返回 file id");
-  }
-  return id;
 }
 
 /** Redact bulky base64/data-URI fields in HTTP logs. */
@@ -1459,9 +1370,6 @@ export async function generateVideo(
       referenceImageEnd,
       referenceImages,
       referenceAudios,
-      uploadBaseUrl: baseUrl,
-      apiKey: options.apiKey,
-      signal: options.signal,
     });
   } else {
   let submitBody: Record<string, unknown>;
