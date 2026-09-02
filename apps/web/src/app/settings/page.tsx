@@ -124,7 +124,7 @@ const FIELD_EXAMPLES: Record<
     endpoint: "s3.cn-north-1.qiniucs.com",
     accessKey: "xxxxxxxxDemoQiniuAccessKey",
     secretKey: "xxxxxxxxDemoQiniuSecretKeyxxxxxxxx",
-    publicBaseUrl: "http://img.learncom.cn",
+    publicBaseUrl: "https://img.learncom.cn",
   },
   oss: {
     bucket: "my-oss-bucket",
@@ -164,7 +164,11 @@ type FormState = {
   skipAcl: boolean;
 };
 
-function emptyForm(): FormState {
+function emptyForm(providerId?: string): FormState {
+  const skipAclDefault =
+    providerId === "qiniu" ||
+    providerId === "oss" ||
+    providerId === "cos";
   return {
     bucket: "",
     region: "",
@@ -173,12 +177,38 @@ function emptyForm(): FormState {
     secretKey: "",
     publicBaseUrl: "",
     forcePathStyle: false,
-    skipAcl: false,
+    skipAcl: skipAclDefault,
   };
 }
 
-function formFromConfig(cfg: StorageConfig | null | undefined): FormState {
-  if (!cfg) return emptyForm();
+/** Prefill non-secret infra fields for faster new-machine setup (never real keys). */
+function formFromExamples(providerId: string): FormState {
+  const id = (providerId in FIELD_EXAMPLES
+    ? providerId
+    : "tos") as ProviderId;
+  const ex = FIELD_EXAMPLES[id];
+  return {
+    ...emptyForm(id),
+    bucket: ex.bucket,
+    region: ex.region,
+    endpoint: ex.endpoint,
+    publicBaseUrl: ex.publicBaseUrl,
+  };
+}
+
+function formFromConfig(
+  cfg: StorageConfig | null | undefined,
+  providerId?: string,
+): FormState {
+  if (!cfg) return emptyForm(providerId);
+  const hasInfra =
+    Boolean(cfg.bucket?.trim()) ||
+    Boolean(cfg.region?.trim()) ||
+    Boolean(cfg.endpoint?.trim()) ||
+    Boolean(cfg.publicBaseUrl?.trim()) ||
+    Boolean(cfg.hasAccessKey) ||
+    Boolean(cfg.hasSecretKey);
+  if (!hasInfra) return formFromExamples(providerId ?? cfg.provider);
   return {
     bucket: cfg.bucket ?? "",
     region: cfg.region ?? "",
@@ -234,7 +264,12 @@ export default function SettingsPage() {
   const applyConfigForProvider = useCallback(
     (nextProvider: string, list: StorageConfig[]) => {
       const cfg = list.find((c) => c.provider === nextProvider) ?? null;
-      setForm(formFromConfig(cfg));
+      if (!cfg) {
+        // 新电脑 / 未保存过该厂商：预填非密钥示例字段（七牛等）
+        setForm(formFromExamples(nextProvider));
+        return;
+      }
+      setForm(formFromConfig(cfg, nextProvider));
     },
     [],
   );
@@ -670,7 +705,7 @@ await md.imagesGenerations({
         setConfigs(data.configs);
         applyConfigForProvider(provider, data.configs);
       } else {
-        setForm(emptyForm());
+        setForm(formFromExamples(provider));
       }
       await refresh();
     } finally {

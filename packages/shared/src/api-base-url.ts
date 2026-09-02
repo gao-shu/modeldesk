@@ -7,7 +7,7 @@
  *
  * 图片 / 视频等：
  *   简单 = API 根（https://ark.cn-beijing.volces.com/api/v3）→ 请求时拼协议 action
- *   高级 = 默认填完整 action URL，可再改；请求时原样使用
+ *   高级 = 填完整 action URL 原样使用；若只填到 API 根（…/v1）仍自动补 action
  */
 
 import { getApiFormat } from "./api-formats";
@@ -217,6 +217,23 @@ export function resolveApiActionUrl(
   }
 
   if (effective === "advanced") {
+    // 高级默认原样；但常见误填「只写 API 根」（…/v1、…/api/v3）却期望拼 action。
+    // 仅在路径看起来仍是根时补 action；更深自定义路径保持原样。
+    const action = apiActionPathForFormat(apiFormatId);
+    if (!action) return trimmed;
+    if (trimmed.toLowerCase().endsWith(action.toLowerCase())) return trimmed;
+    const parsed = parseUrlSafe(trimmed);
+    if (!parsed) return trimmed;
+    const path = normalizePath(parsed.pathname || "");
+    const rootPath = apiRootPathForFormat(apiFormatId);
+    const looksLikeApiRoot =
+      !path ||
+      /^\/v\d+[a-z]*$/i.test(path) ||
+      /^\/api\/v\d+[a-z]*$/i.test(path) ||
+      (rootPath != null && path === rootPath);
+    if (looksLikeApiRoot) {
+      return `${trimmed}${action}`;
+    }
     return trimmed;
   }
 

@@ -434,7 +434,9 @@ export function ApiConfigForm({
       form.modelId || activeFormat?.suggestedModelId || "",
     );
     const nameIsAuto = !form.name.trim() || form.name.trim() === prevAuto;
-    const nextBaseUrl = fmt?.suggestedBaseUrl || form.baseUrl;
+    const suggested = fmt?.suggestedBaseUrl;
+    const nextBaseUrl =
+      suggested !== undefined && suggested !== null ? suggested : form.baseUrl;
     const nextMode = inferApiBaseUrlMode(nextBaseUrl, apiFormat);
     patch({
       apiFormat,
@@ -708,9 +710,11 @@ export function ApiConfigForm({
                   ? form.modality === "text"
                     ? "例如 https://api.deepseek.com/v1/chat/completions"
                     : activeFormat?.apiActionPath
-                      ? `例如 ${(activeFormat.suggestedBaseUrl || "").replace(/\/+$/, "")}${activeFormat.apiActionPath}`
+                      ? `完整提交 URL，例如 ${(
+                          activeFormat.suggestedBaseUrl || "https://api.example.com/v1"
+                        ).replace(/\/+$/, "")}${activeFormat.apiActionPath}`
                       : activeFormat?.suggestedBaseUrl ||
-                        "例如 https://ark.cn-beijing.volces.com/api/v3/images/generations"
+                        "例如 https://api.example.com/v1/images/generations"
                   : "例如 https://api.example.com/v1"
             }
           />

@@ -1028,38 +1028,13 @@ export function resolveMinimaxH3RelaySize(
   return MINIMAX_H3_RELAY_SIZE[aspect] ?? MINIMAX_H3_RELAY_SIZE["16:9"]!;
 }
 
-function appendRelayFormMedia(
-  form: FormData,
-  field: string,
-  ref: string,
-  logRefs: string[],
-): void {
-  const trimmed = ref.trim();
-  if (!trimmed) return;
-  if (isHttpUrl(trimmed)) {
-    form.append(field, trimmed);
-    logRefs.push(trimmed);
-    return;
-  }
-  const parsed = parseVideoDataUri(trimmed);
-  if (parsed) {
-    const filename = `${field}-${logRefs.length}.${videoMimeToExt(parsed.mime)}`;
-    const blob = new Blob([new Uint8Array(parsed.bytes)], {
-      type: parsed.mime,
-    });
-    form.append(field, blob, filename);
-    logRefs.push(`[file ${filename}]`);
-    return;
-  }
-  form.append(field, trimmed);
-  logRefs.push(redactUrlValue(trimmed));
-}
-
 /**
- * 拾光 minimax_h3：OpenAI 形 /videos，但带 H3 的 size/resolution/ratio。
- * 文生 JSON；有参考图时 multipart（与中转 curl -F 一致）。
+ * 拾光 minimax_h3：OpenAI 形 /videos，带 H3 的 size/resolution/ratio。
+ * - 文生：JSON
+ * - 首帧 / 首尾帧 / 多参：JSON `content[]`（role=first_frame|last_frame|reference_image|reference_audio）
+ * - 本地图：优先经对象存储（七牛等）变成公网 HTTPS；兜底才 POST /files（须带 model）
  */
-export function buildMinimaxH3RelaySubmit(opts: {
+export async function buildMinimaxH3RelaySubmit(opts: {
   model: string;
   prompt: string;
   durationSec?: number;
@@ -1068,7 +1043,13 @@ export function buildMinimaxH3RelaySubmit(opts: {
   aspectRatio?: string;
   referenceImage?: string;
   referenceImageEnd?: string;
-}): VideoSubmitPayload {
+  referenceImages?: string[];
+  referenceAudios?: string[];
+  /** API 根（…/v1），用于上传本地参考图 */
+  uploadBaseUrl?: string;
+  apiKey?: string;
+  signal?: AbortSignal;
+}): Promise<VideoSubmitPayload> {
   const seconds = Math.min(
     15,
     Math.max(4, Math.round(opts.durationSec ?? 5)),
@@ -1076,58 +1057,185 @@ export function buildMinimaxH3RelaySubmit(opts: {
   const size = resolveMinimaxH3RelaySize(opts.aspectRatio, opts.size);
   const resolution = normalizeMinimaxH3RelayResolution(opts.resolution);
   const ratioRaw = opts.aspectRatio?.trim() || "16:9";
-  const ratio = ratioRaw === "adaptive" ? "16:9" : ratioRaw;
+  const ratio = ratioRaw === "adaptive" ? "adaptive" : ratioRaw;
   const first = opts.referenceImage?.trim();
   const last = opts.referenceImageEnd?.trim();
+  const multiRefs = (opts.referenceImages ?? [])
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, 9);
+  const audioRefs = (opts.referenceAudios ?? [])
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, 3);
 
-  if (!first && !last) {
-    return {
-      mode: "json",
-      body: {
-        model: opts.model,
-        prompt: opts.prompt,
-        // 中转 Go schema：seconds 为 string（数字会 400 invalid_json）
-        seconds: String(seconds),
-        size,
-        resolution,
-        ratio,
-      },
-    };
+  if (multiRefs.length > 0 && (first || last)) {
+    throw new Error(
+      "拾光 MiniMax H3：多参参考图与首尾帧不能同时使用，请只选一种模式。",
+    );
+  }
+  if (audioRefs.length > 0 && multiRefs.length === 0 && !first && !last) {
+    throw new Error("拾光 MiniMax H3：参考音频须搭配参考图（多参或首帧）。");
   }
 
-  const form = new FormData();
-  form.append("model", opts.model);
-  form.append("prompt", opts.prompt);
-  form.append("seconds", String(seconds));
-  form.append("size", size);
-  form.append("resolution", resolution);
-  form.append("ratio", ratio);
-
-  const logBody: Record<string, unknown> = {
+  const baseBody: Record<string, unknown> = {
     model: opts.model,
     prompt: opts.prompt,
+    // 中转 Go schema：seconds 为 string（数字会 400 invalid_json）
     seconds: String(seconds),
     size,
     resolution,
     ratio,
-    _multipart: true,
   };
-  const logRefs: string[] = [];
 
-  if (first && last) {
-    appendRelayFormMedia(form, "first_frame", first, logRefs);
-    appendRelayFormMedia(form, "last_frame", last, logRefs);
-    logBody.first_frame = logRefs[0];
-    logBody.last_frame = logRefs[1];
-  } else if (first) {
-    appendRelayFormMedia(form, "input_reference", first, logRefs);
-    logBody.input_reference = logRefs[0];
-  } else if (last) {
-    appendRelayFormMedia(form, "last_frame", last, logRefs);
-    logBody.last_frame = logRefs[0];
+  if (!first && !last && multiRefs.length === 0) {
+    return { mode: "json", body: baseBody };
   }
 
-  return { mode: "multipart", form, logBody };
+  type ContentItem = {
+    type: "image_url" | "audio_url";
+    image_url?: { url: string };
+    audio_url?: { url: string };
+    role: string;
+  };
+
+  const content: ContentItem[] = [];
+  const resolveMedia = async (raw: string): Promise<string> => {
+    if (isHttpUrl(raw) || /^file[_-]/i.test(raw)) return raw;
+    if (!opts.uploadBaseUrl || !opts.apiKey) {
+      throw new Error(
+        "拾光 MiniMax H3 参考图须为公网 HTTPS URL。请到「系统设置」开启对象存储（七牛等）后本地上传，或直接粘贴公网链接。",
+      );
+    }
+    // 兜底：未走对象存储时再试 New API /files（须带 model）
+    return uploadMinimaxH3RelayReferenceFile({
+      baseUrl: opts.uploadBaseUrl,
+      apiKey: opts.apiKey,
+      model: opts.model,
+      ref: raw,
+      signal: opts.signal,
+    });
+  };
+
+  if (multiRefs.length > 0) {
+    for (const ref of multiRefs) {
+      const url = await resolveMedia(ref);
+      content.push({
+        type: "image_url",
+        image_url: { url },
+        role: "reference_image",
+      });
+    }
+  } else if (first && last) {
+    content.push({
+      type: "image_url",
+      image_url: { url: await resolveMedia(first) },
+      role: "first_frame",
+    });
+    content.push({
+      type: "image_url",
+      image_url: { url: await resolveMedia(last) },
+      role: "last_frame",
+    });
+  } else if (first) {
+    content.push({
+      type: "image_url",
+      image_url: { url: await resolveMedia(first) },
+      role: "first_frame",
+    });
+  } else if (last) {
+    content.push({
+      type: "image_url",
+      image_url: { url: await resolveMedia(last) },
+      role: "last_frame",
+    });
+  }
+
+  for (const ref of audioRefs) {
+    const url = await resolveMedia(ref);
+    content.push({
+      type: "audio_url",
+      audio_url: { url },
+      role: "reference_audio",
+    });
+  }
+
+  return {
+    mode: "json",
+    body: {
+      ...baseBody,
+      content,
+    },
+  };
+}
+
+/**
+ * POST /files · purpose=video_reference → file_id。
+ * New API 要求 multipart 里带 model；公网 URL / file_id 原样返回。
+ * 优先路径仍是对象存储公网 URL（ensurePublicImageUrl），本函数仅兜底。
+ */
+export async function uploadMinimaxH3RelayReferenceFile(opts: {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  ref: string;
+  signal?: AbortSignal;
+}): Promise<string> {
+  const trimmed = opts.ref.trim();
+  if (!trimmed) throw new Error("参考媒体不能为空");
+  if (isHttpUrl(trimmed) || /^file[_-]/i.test(trimmed)) return trimmed;
+
+  const parsed = parseVideoDataUri(trimmed);
+  if (!parsed && !isDataUriOrRawBase64(trimmed)) {
+    return trimmed;
+  }
+
+  const mime = parsed?.mime ?? "image/jpeg";
+  const bytes =
+    parsed?.bytes ??
+    Buffer.from(trimmed.replace(/^data:[^;]+;base64,/i, ""), "base64");
+  const ext = videoMimeToExt(mime);
+  const root = normalizeBaseUrl(opts.baseUrl).replace(/\/videos$/i, "");
+  // New API 渠道路由常在解析 multipart 前读 query；form 里也带一份
+  const modelName = (opts.model || "MiniMax-H3").trim() || "MiniMax-H3";
+  const url = `${root}/files?model=${encodeURIComponent(modelName)}`;
+  const form = new FormData();
+  form.append("model", modelName);
+  form.append("purpose", "video_reference");
+  form.append(
+    "file",
+    new Blob([new Uint8Array(bytes)], { type: mime }),
+    `ref.${ext}`,
+  );
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${opts.apiKey}` },
+    body: form,
+    signal: opts.signal,
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(
+      `拾光参考图上传失败 (${response.status}): ${text.slice(0, 300)}。参考图仍是本地 data URI（对象存储未生效）。请到「系统设置 → 对象存储」启用七牛并保存 AccessKey/SecretKey/公网域名后再本地上传。`,
+    );
+  }
+  let parsedJson: unknown;
+  try {
+    parsedJson = JSON.parse(text) as unknown;
+  } catch {
+    throw new Error("拾光参考图上传返回非 JSON");
+  }
+  const id =
+    parsedJson &&
+    typeof parsedJson === "object" &&
+    typeof (parsedJson as { id?: unknown }).id === "string"
+      ? (parsedJson as { id: string }).id.trim()
+      : "";
+  if (!id) {
+    throw new Error("拾光参考图上传未返回 file id");
+  }
+  return id;
 }
 
 /** Redact bulky base64/data-URI fields in HTTP logs. */
@@ -1340,7 +1448,7 @@ export async function generateVideo(
       logBody: built.logBody,
     };
   } else if (minimaxH3Relay) {
-    submitPayload = buildMinimaxH3RelaySubmit({
+    submitPayload = await buildMinimaxH3RelaySubmit({
       model: options.model,
       prompt: options.prompt,
       durationSec: options.durationSec,
@@ -1349,6 +1457,11 @@ export async function generateVideo(
       aspectRatio: options.aspectRatio,
       referenceImage,
       referenceImageEnd,
+      referenceImages,
+      referenceAudios,
+      uploadBaseUrl: baseUrl,
+      apiKey: options.apiKey,
+      signal: options.signal,
     });
   } else {
   let submitBody: Record<string, unknown>;
@@ -1496,11 +1609,11 @@ export async function generateVideo(
       const ratio = options.aspectRatio?.trim();
       if (ratio) submitBody.aspect_ratio = ratio;
       const res = options.resolution?.trim().toLowerCase();
-      // 官方：1080p 仅 grok-imagine-video-1.5（T2V/I2V）；其它型号最高 720p
-      const supports1080p = /1\.5/i.test(options.model);
-      if (res === "1080p" && !supports1080p) {
+      // 官方：1080p / R2V 仅 1.5 系（T2V/I2V）；其它型号最高 720p、仅单张 I2V
+      const isGrok15 = /1\.5/i.test(options.model);
+      if (res === "1080p" && !isGrok15) {
         throw new Error(
-          "Grok 1080p 仅支持 grok-imagine-video-1.5；当前型号请改用 480p 或 720p。",
+          "Grok 1080p 仅支持型号名含 1.5（如 grok-imagine-video-1.5 / grok-video-1.5）；当前请改用 480p 或 720p。",
         );
       }
       if (res === "480p" || res === "720p" || res === "1080p") {
@@ -1508,16 +1621,16 @@ export async function generateVideo(
       }
       // I2V：image.url；R2V：reference_images[{url}]（互斥）
       // https://docs.x.ai/developers/model-capabilities/video/reference-to-video
-      // 能力文档：R2V 仅 grok-imagine-video-1.5（最多 7 张）。非 1.5 只有 I2V 单张 image。
+      // 能力文档：R2V 仅 1.5（最多 7 张）。非 1.5 只有 I2V 单张 image。
       if (referenceImages.length > 0) {
         if (referenceImage) {
           throw new Error(
             "Grok 不能同时使用首帧图（image）与多参考（reference_images）；请只选一种模式。",
           );
         }
-        if (!supports1080p) {
+        if (!isGrok15) {
           throw new Error(
-            "Grok 多参考（reference_images / R2V）仅支持 grok-imagine-video-1.5；当前型号请改用 1.5，或改选「首帧图」只传 1 张。",
+            "Grok 多参考（R2V）仅支持型号名含 1.5（如 grok-imagine-video-1.5 / grok-video-1.5）；请改用 1.5，或改选「首帧图」只传 1 张。",
           );
         }
         const refs = referenceImages.slice(0, 7);

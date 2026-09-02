@@ -144,7 +144,7 @@ export const EXTENDED_PROVIDER_PRESETS = [
     id: "agnes-image",
     label: "Agnes 图像",
     baseUrl: "https://apihub.agnes-ai.com/v1",
-    defaultModelId: "agnes-image-2.1-flash",
+    defaultModelId: "agnes-image-2.5-flash",
     modalities: ["image"] as const,
   },
   {
