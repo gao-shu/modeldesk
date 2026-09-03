@@ -126,8 +126,89 @@ export class ModelDeskGatewayClient {
     return this.request("POST", "/v1/images/edits", input);
   }
 
+  /**
+   * Async video submit (alias path). Same contract as `videosCreate` —
+   * returns immediately with task id; poll `videosGet`.
+   */
   videosGenerations(input: MediaGenerateInput) {
-    return this.request("POST", "/v1/videos/generations", input);
+    return this.videosCreate(input, "/v1/videos/generations");
+  }
+
+  /** Async video submit — returns immediately with task id. */
+  videosCreate(
+    input: MediaGenerateInput,
+    path: "/v1/videos" | "/v1/videos/generations" = "/v1/videos",
+  ) {
+    return this.request<{
+      id: string;
+      object: "video";
+      created_at: number;
+      status: string;
+      model?: string;
+      progress?: number;
+      modeldesk?: { runId: string; jobId: string };
+    }>("POST", path, input);
+  }
+
+  /** Poll async video task (id = job id from videosCreate). */
+  videosGet(id: string) {
+    return this.request<{
+      id: string;
+      object: "video";
+      created_at: number;
+      status: string;
+      progress?: number;
+      model?: string;
+      url?: string;
+      data?: Array<{
+        url: string;
+        remoteUrl?: string | null;
+        mime?: string | null;
+        id?: string;
+      }>;
+      error?: { message: string; type?: string };
+      modeldesk?: Record<string, unknown>;
+    }>("GET", `/v1/videos/${encodeURIComponent(id)}`);
+  }
+
+  /** Cancel an in-flight async video task. */
+  videosCancel(id: string) {
+    return this.request("DELETE", `/v1/videos/${encodeURIComponent(id)}`);
+  }
+
+  /**
+   * Download completed video bytes (OpenAI Videos–shaped).
+   * Serves ModelDesk local artifact — poll until `completed` first.
+   */
+  async videosContent(id: string): Promise<{
+    bytes: Uint8Array;
+    contentType: string;
+    status: number;
+  }> {
+    const res = await this.fetchImpl(
+      joinUrl(this.baseUrl, `/v1/videos/${encodeURIComponent(id)}/content`),
+      {
+        method: "GET",
+        headers: this.headers(false),
+      },
+    );
+    if (!res.ok) {
+      const text = await res.text();
+      let message = `HTTP ${res.status}`;
+      try {
+        const data = text ? (JSON.parse(text) as { error?: { message?: string } }) : null;
+        if (data?.error?.message) message = String(data.error.message);
+      } catch {
+        if (text.trim()) message = text.slice(0, 200);
+      }
+      throw new Error(message);
+    }
+    const buf = new Uint8Array(await res.arrayBuffer());
+    return {
+      bytes: buf,
+      contentType: res.headers.get("content-type") || "video/mp4",
+      status: res.status,
+    };
   }
 
   audioSpeech(input: MediaGenerateInput) {

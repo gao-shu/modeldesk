@@ -25,6 +25,10 @@ import {
   type ModelRow,
 } from "@/lib/server/models";
 import { resolveDataPath } from "@/lib/server/paths";
+import {
+  clearRunAbort,
+  registerRunAbort,
+} from "@/lib/server/run-abort";
 import { createSingleRun } from "@/lib/server/runs";
 import {
   isRunCoreAgentModality,
@@ -88,7 +92,17 @@ export type RunCoreCompleted = {
   result: JobExecResult;
 };
 
+export type RunCoreSubmitted = {
+  kind: "submitted";
+  runId: string;
+  jobId: string;
+  modality: string;
+  params: Record<string, unknown>;
+  model: RunPreparedInfo["model"];
+};
+
 export type RunCoreOutcome = RunCorePrepareError | RunCoreCompleted;
+export type RunCoreSubmitOutcome = RunCorePrepareError | RunCoreSubmitted;
 
 export type RunSingleModelInput = {
   modelId: string;
@@ -307,6 +321,120 @@ export async function runSingleModel(
   };
 }
 
+/**
+ * Create a persisted single-run and start execute in the background.
+ * Returns immediately with runId/jobId for async poll (gateway videos).
+ */
+export function submitSingleModel(
+  input: RunSingleModelInput,
+): RunCoreSubmitOutcome {
+  const ready = checkRunModelReady(input.modelId, input.expectModality);
+  if (!("ok" in ready)) return ready;
+
+  const { row, apiKey } = ready;
+  const publicModel = toPublicModel(row);
+  const apiFormat = resolveApiFormatId({
+    modality: row.modality,
+    defaults: publicModel.defaults,
+    provider: publicModel.provider,
+    baseUrl: publicModel.baseUrl,
+    modelId: publicModel.modelId,
+  });
+  const params = resolveRunParamsForFormat(
+    apiFormat,
+    row.modality,
+    publicModel.defaults,
+    {
+      ...(input.params ?? {}),
+      ...(input.temperature != null ? { temperature: input.temperature } : {}),
+      ...(input.maxTokens != null ? { max_tokens: input.maxTokens } : {}),
+    },
+  );
+  const temperature =
+    typeof params.temperature === "number" ? params.temperature : null;
+  const maxTokens =
+    typeof params.max_tokens === "number" ? params.max_tokens : null;
+
+  const prompt =
+    input.messages && input.messages.length > 0
+      ? chatMessagesToStoragePrompt(input.messages) || input.prompt
+      : input.prompt;
+
+  const { run, job } = createSingleRun({
+    modelId: row.id,
+    prompt,
+    temperature,
+    maxTokens,
+    params,
+    modality: row.modality,
+    suiteId: input.suiteId,
+    caseId: input.caseId,
+    modelSnapshot: {
+      id: publicModel.id,
+      name: publicModel.name,
+      provider: publicModel.provider,
+      modelId: publicModel.modelId,
+      baseUrl: publicModel.baseUrl,
+      modality: publicModel.modality,
+      defaults: {
+        api_format: apiFormat,
+      },
+    },
+  });
+
+  const modelMeta: RunPreparedInfo["model"] = {
+    id: publicModel.id,
+    name: publicModel.name,
+    modelId: publicModel.modelId,
+    provider: publicModel.provider,
+    modality: publicModel.modality,
+  };
+
+  const prepared: RunPreparedInfo = {
+    runId: run.id,
+    jobId: job.id,
+    modality: row.modality,
+    params,
+    model: modelMeta,
+  };
+
+  const fromPrepared = input.onPrepared?.(prepared);
+  const parentSignal =
+    fromPrepared instanceof AbortSignal
+      ? fromPrepared
+      : (input.signal ?? null);
+  const signal = registerRunAbort(run.id, parentSignal);
+
+  void executeModelJob({
+    runId: run.id,
+    jobId: job.id,
+    row,
+    apiKey: apiKey ?? "mock",
+    prompt,
+    temperature,
+    maxTokens,
+    params,
+    messages: input.messages,
+    signal,
+    onEvent: input.onEvent,
+  })
+    .catch(() => {
+      /* status persisted on job */
+    })
+    .finally(() => {
+      clearRunAbort(run.id);
+    });
+
+  return {
+    kind: "submitted",
+    runId: run.id,
+    jobId: job.id,
+    modality: row.modality,
+    params,
+    model: modelMeta,
+  };
+}
+
 /** Convenience: run a text model (prepare error if modality ≠ text). */
 export async function runText(
   input: Omit<RunSingleModelInput, "expectModality">,
@@ -326,6 +454,13 @@ export async function runVideo(
   input: Omit<RunSingleModelInput, "expectModality">,
 ): Promise<RunCoreOutcome> {
   return runSingleModel({ ...input, expectModality: "video" });
+}
+
+/** Fire-and-forget video job for async gateway poll. */
+export function submitVideo(
+  input: Omit<RunSingleModelInput, "expectModality">,
+): RunCoreSubmitOutcome {
+  return submitSingleModel({ ...input, expectModality: "video" });
 }
 
 /** Convenience: run an audio (TTS/speech) model. */

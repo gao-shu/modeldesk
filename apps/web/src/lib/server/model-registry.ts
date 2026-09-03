@@ -1,20 +1,18 @@
 import {
   createModelRegistry,
-  createVideoRuntime,
   type ModelRegistry,
-  type VideoGenerateAdapterInput,
-  type VideoRuntime,
+  type VideoTaskStatusValue,
 } from "@modeldesk/model-registry";
 import { generateVideo } from "@modeldesk/adapters";
 import {
   apiBaseUrlModeFromDefaults,
   resolveApiFormatId,
-  resolveRunParamsForFormat,
   videoSettingsFromParams,
   VIDEO_WAIT_TIMEOUT_MS,
 } from "@modeldesk/shared";
 import { createSqliteModelStore } from "./model-registry-store";
-import { getModel, toPublicModel } from "./models";
+import { coerceMediaUrlList } from "./media-url-list";
+import { getModel, toPublicModel, type ModelRow } from "./models";
 import { runModelSmokeTest } from "./smoke-test";
 import { ensurePublicImageUrl, ensurePublicVoiceUrl } from "./tos";
 
@@ -36,7 +34,6 @@ function combineSignal(
 }
 
 let registrySingleton: ModelRegistry | null = null;
-let videoRuntimeSingleton: VideoRuntime | null = null;
 
 export function getModelRegistry(): ModelRegistry {
   if (!registrySingleton) {
@@ -51,29 +48,52 @@ export function getModelRegistry(): ModelRegistry {
   return registrySingleton;
 }
 
-async function adapterGenerateVideo(input: VideoGenerateAdapterInput) {
-  const resolved = input.resolved;
-  const row = getModel(resolved.id);
-  if (!row) {
-    throw new Error(`Model row missing for ${resolved.id}`);
-  }
+/** Input for video generate — params must already be merged by run-core. */
+export type RunVideoGenerateInput = {
+  row: ModelRow;
+  apiKey: string;
+  prompt: string;
+  params: Record<string, unknown>;
+  signal?: AbortSignal;
+  timeoutMs?: number;
+  onStatus?: (status: VideoTaskStatusValue, detail?: string) => void;
+  onHttpLog?: (log: { url: string; body: Record<string, unknown> }) => void;
+};
+
+export type RunVideoGenerateResult = {
+  bytes: Uint8Array;
+  mime: string;
+  extension: string;
+  remoteUrl?: string;
+  latencyMs: number;
+  taskId?: string;
+  usage: {
+    promptTokens: number | null;
+    completionTokens: number | null;
+    totalTokens: number | null;
+  } | null;
+};
+
+/**
+ * Video path isomorphic with image: run-core merges params once; this only
+ * builds adapter knobs, public media URLs, and calls generateVideo.
+ */
+export async function runVideoGenerate(
+  input: RunVideoGenerateInput,
+): Promise<RunVideoGenerateResult> {
+  const row = getModel(input.row.id) ?? input.row;
   const pub = toPublicModel(row);
   const apiFormat = resolveApiFormatId({
-    modality: resolved.modality,
-    defaults: resolved.defaults,
-    provider: resolved.provider,
-    baseUrl: resolved.baseUrl,
-    modelId: resolved.modelId,
+    modality: row.modality,
+    defaults: pub.defaults,
+    provider: row.provider,
+    baseUrl: row.base_url,
+    modelId: row.model_id,
   });
-  const params = resolveRunParamsForFormat(
-    apiFormat,
-    resolved.modality,
-    pub.defaults,
-    input.params,
-  );
+  // Trust run-core merge — do not call resolveRunParamsForFormat again.
+  const params = input.params ?? {};
   const knobs = videoSettingsFromParams(params, apiFormat);
   const withAudio = (() => {
-    // Seedance / Wan / 可灵：严格按 UI；缺省不强制 true
     if (
       apiFormat === "video.volcengine-seedance" ||
       apiFormat === "video.volcengine-wan" ||
@@ -81,7 +101,8 @@ async function adapterGenerateVideo(input: VideoGenerateAdapterInput) {
       apiFormat === "video.kling"
     ) {
       if (params.with_audio === true || params.with_audio === "true") return true;
-      if (params.with_audio === false || params.with_audio === "false") return false;
+      if (params.with_audio === false || params.with_audio === "false")
+        return false;
       return undefined;
     }
     return params.with_audio !== false;
@@ -94,7 +115,6 @@ async function adapterGenerateVideo(input: VideoGenerateAdapterInput) {
     typeof params.resolution === "string" && params.resolution.trim()
       ? params.resolution.trim()
       : undefined;
-  // 不加水印；不在 UI 暴露，固定传 false
   const watermark = false;
   const cameraFixed =
     params.camera_fixed === true ||
@@ -120,64 +140,12 @@ async function adapterGenerateVideo(input: VideoGenerateAdapterInput) {
       ? params.reference_image_end
       : undefined,
   );
-  const referenceImagesRaw = (() => {
-    const fromList = params.reference_images;
-    if (typeof fromList === "string" && fromList.trim()) {
-      const raw = fromList.trim();
-      if (raw.startsWith("[")) {
-        try {
-          const parsed = JSON.parse(raw) as unknown;
-          if (Array.isArray(parsed)) {
-            return parsed
-              .filter((x): x is string => typeof x === "string")
-              .map((x) => x.trim())
-              .filter(Boolean);
-          }
-        } catch {
-          /* fall through */
-        }
-      }
-      return raw ? [raw] : [];
-    }
-    if (Array.isArray(fromList)) {
-      return fromList
-        .filter((x): x is string => typeof x === "string")
-        .map((x) => x.trim())
-        .filter(Boolean);
-    }
-    return [];
-  })();
+  const referenceImagesRaw = coerceMediaUrlList(params.reference_images);
   const referenceImages = (
     await Promise.all(referenceImagesRaw.map((r) => ensurePublicImageUrl(r)))
   ).filter((x): x is string => Boolean(x?.trim()));
 
-  const referenceAudiosRaw = (() => {
-    const fromList = params.reference_audios;
-    if (typeof fromList === "string" && fromList.trim()) {
-      const raw = fromList.trim();
-      if (raw.startsWith("[")) {
-        try {
-          const parsed = JSON.parse(raw) as unknown;
-          if (Array.isArray(parsed)) {
-            return parsed
-              .filter((x): x is string => typeof x === "string")
-              .map((x) => x.trim())
-              .filter(Boolean);
-          }
-        } catch {
-          /* fall through */
-        }
-      }
-      return raw ? [raw] : [];
-    }
-    if (Array.isArray(fromList)) {
-      return fromList
-        .filter((x): x is string => typeof x === "string")
-        .map((x) => x.trim())
-        .filter(Boolean);
-    }
-    return [];
-  })();
+  const referenceAudiosRaw = coerceMediaUrlList(params.reference_audios);
   const referenceAudios = (
     await Promise.all(referenceAudiosRaw.map((r) => ensurePublicVoiceUrl(r)))
   ).filter((x): x is string => Boolean(x?.trim()));
@@ -205,13 +173,13 @@ async function adapterGenerateVideo(input: VideoGenerateAdapterInput) {
         }
       : undefined;
 
-  const baseUrl = resolved.baseUrl ?? "mock://video";
-  const timeoutMs = input.timeoutMs ?? VIDEO_WAIT_TIMEOUT_MS; // 视频默认 30 分钟
+  const baseUrl = row.base_url ?? "mock://video";
+  const timeoutMs = input.timeoutMs ?? VIDEO_WAIT_TIMEOUT_MS;
 
   const result = await generateVideo({
     baseUrl,
-    apiKey: resolved.apiKey || "mock",
-    model: resolved.modelId,
+    apiKey: input.apiKey || "mock",
+    model: row.model_id,
     prompt: input.prompt,
     apiFormat,
     baseUrlMode: apiBaseUrlModeFromDefaults(pub.defaults),
@@ -248,14 +216,4 @@ async function adapterGenerateVideo(input: VideoGenerateAdapterInput) {
     taskId: result.taskId,
     usage: result.usage ?? null,
   };
-}
-
-export function getVideoRuntime(): VideoRuntime {
-  if (!videoRuntimeSingleton) {
-    videoRuntimeSingleton = createVideoRuntime({
-      registry: getModelRegistry(),
-      generateVideo: adapterGenerateVideo,
-    });
-  }
-  return videoRuntimeSingleton;
 }

@@ -1,11 +1,21 @@
 import { parseSseChunk } from "./sse";
-import { VIDEO_WAIT_TIMEOUT_MS } from "@modeldesk/shared";
 
 /** Soft cap on concurrent single-model runs from this browser tab. */
 export const MAX_CONCURRENT_SINGLE_RUNS = 3;
 
-/** How often to poll `/api/runs/active` while something is in flight. */
-export const ACTIVE_POLL_INTERVAL_MS = 5_000;
+/** Base interval for `/api/runs/active` while something is in flight. */
+export const ACTIVE_POLL_INTERVAL_MS = 10_000;
+/** Cap for exponential backoff between active polls. */
+export const ACTIVE_POLL_MAX_INTERVAL_MS = 20_000;
+
+/** Next delay after a successful (or attempted) active poll tick. */
+export function nextActivePollDelayMs(currentMs: number): number {
+  const base = Math.max(currentMs, ACTIVE_POLL_INTERVAL_MS);
+  return Math.min(
+    ACTIVE_POLL_MAX_INTERVAL_MS,
+    Math.round(base * 1.5),
+  );
+}
 
 export type ActiveRunSnapshot = {
   runId: string | null;
@@ -249,7 +259,10 @@ export function hydrateFromHistory(input: {
   sessions.set(localId, session);
   focusedLocalId = localId;
   emit();
-  if (input.status === "running") ensureBackgroundActivePoll();
+  if (input.status === "running") {
+    resetBackgroundPollBackoff();
+    ensureBackgroundActivePoll();
+  }
 }
 
 export async function startActiveSingleRun(input: {
@@ -288,6 +301,7 @@ export async function startActiveSingleRun(input: {
   sessions.set(localId, session);
   focusedLocalId = localId;
   emit();
+  resetBackgroundPollBackoff();
   ensureBackgroundActivePoll();
 
   const patch = (
@@ -774,31 +788,50 @@ export async function reconcileSessionsFromServer(
   return active;
 }
 
-function hasNonLiveRunning(): boolean {
-  for (const s of sessions.values()) {
-    if (s.snap.running && !s.live) return true;
-  }
-  return false;
-}
-
-/** Module-level active poll — keeps reconciling after leaving the run page. */
-let backgroundActivePollTimer: ReturnType<typeof setInterval> | null = null;
+/**
+ * Module-level active poll — keeps reconciling after leaving the run page.
+ * Paused while a run page owns polling (`acquireActivePollOwner`) to avoid
+ * duplicate `/api/runs/active` traffic.
+ */
+let backgroundActivePollTimer: ReturnType<typeof setTimeout> | null = null;
+let backgroundPollDelayMs = ACTIVE_POLL_INTERVAL_MS;
+/** >0 while SingleRunPage (or similar) is driving the active poll. */
+let activePollPageOwners = 0;
 
 function stopBackgroundActivePoll() {
   if (!backgroundActivePollTimer) return;
-  clearInterval(backgroundActivePollTimer);
+  clearTimeout(backgroundActivePollTimer);
   backgroundActivePollTimer = null;
 }
 
-/** Poll `/api/runs/active` while any local session is still running (tab-wide). */
-export function ensureBackgroundActivePoll(): void {
-  if (backgroundActivePollTimer) return;
-  if (runningCount() === 0) return;
+function resetBackgroundPollBackoff() {
+  backgroundPollDelayMs = ACTIVE_POLL_INTERVAL_MS;
+}
 
-  backgroundActivePollTimer = setInterval(() => {
+/**
+ * Run page is polling `/active` itself — pause the tab-wide background timer.
+ * Call the returned release when the page effect tears down.
+ */
+export function acquireActivePollOwner(): () => void {
+  activePollPageOwners += 1;
+  stopBackgroundActivePoll();
+  return () => {
+    activePollPageOwners = Math.max(0, activePollPageOwners - 1);
+    if (activePollPageOwners === 0) {
+      resetBackgroundPollBackoff();
+      ensureBackgroundActivePoll();
+    }
+  };
+}
+
+function scheduleBackgroundActivePoll(delayMs: number) {
+  if (backgroundActivePollTimer) return;
+  backgroundActivePollTimer = setTimeout(() => {
+    backgroundActivePollTimer = null;
     void (async () => {
+      if (activePollPageOwners > 0) return;
       if (runningCount() === 0) {
-        stopBackgroundActivePoll();
+        resetBackgroundPollBackoff();
         return;
       }
       try {
@@ -807,12 +840,29 @@ export function ensureBackgroundActivePoll(): void {
       } catch {
         /* ignore transient poll errors */
       }
-      if (runningCount() === 0) stopBackgroundActivePoll();
+      if (runningCount() === 0) {
+        resetBackgroundPollBackoff();
+        return;
+      }
+      if (activePollPageOwners > 0) return;
+      backgroundPollDelayMs = nextActivePollDelayMs(delayMs);
+      scheduleBackgroundActivePoll(backgroundPollDelayMs);
     })();
-  }, ACTIVE_POLL_INTERVAL_MS);
+  }, delayMs);
 }
 
-/** Recover after refresh: hydrate in-flight DB jobs; poll only disconnected sessions. */
+/** Poll `/api/runs/active` while any local session is still running (tab-wide). */
+export function ensureBackgroundActivePoll(): void {
+  if (activePollPageOwners > 0) return;
+  if (runningCount() === 0) return;
+  if (backgroundActivePollTimer) return;
+  scheduleBackgroundActivePoll(backgroundPollDelayMs);
+}
+
+/**
+ * Recover after refresh: hydrate in-flight DB jobs once, then rely on
+ * page/background active poll (with backoff) — no third blocking loop.
+ */
 export async function syncActiveRunFromServer(): Promise<void> {
   await reconcileSessionsFromServer();
 
@@ -844,13 +894,6 @@ export async function syncActiveRunFromServer(): Promise<void> {
     }
   }
 
-  // Keep reconciling for up to the video wait budget even after leaving this page.
+  resetBackgroundPollBackoff();
   ensureBackgroundActivePoll();
-  if (!hasNonLiveRunning()) return;
-
-  const deadline = Date.now() + VIDEO_WAIT_TIMEOUT_MS;
-  while (hasNonLiveRunning() && Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, ACTIVE_POLL_INTERVAL_MS));
-    await reconcileSessionsFromServer();
-  }
 }

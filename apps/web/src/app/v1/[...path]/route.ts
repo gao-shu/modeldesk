@@ -29,3 +29,4 @@ async function dispatch(req: Request, _ctx: Ctx): Promise<Response> {
 export const GET = dispatch;
 export const POST = dispatch;
 export const PUT = dispatch;
+export const DELETE = dispatch;

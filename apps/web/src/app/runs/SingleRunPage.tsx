@@ -40,8 +40,10 @@ import {
   startActiveSingleRun,
   subscribeActiveRun,
   syncActiveRunFromServer,
+  acquireActivePollOwner,
   MAX_CONCURRENT_SINGLE_RUNS,
   ACTIVE_POLL_INTERVAL_MS,
+  nextActivePollDelayMs,
   type ActiveRunSnapshot,
   type ActiveRunSummary,
 } from "@/lib/client/run-session";
@@ -503,6 +505,7 @@ export function SingleRunPage({ modality }: { modality: Modality }) {
   }, [historyPage, refreshHistory, statusFilter]);
 
   // Status poll via lightweight /api/runs/active — not the full history list.
+  // Owns the tab poll while mounted so background ensureBackgroundActivePoll does not double-hit.
   const historyRef = useRef(history);
   historyRef.current = history;
   const needsActivePoll =
@@ -520,6 +523,9 @@ export function SingleRunPage({ modality }: { modality: Modality }) {
 
     let cancelled = false;
     let finishing = false;
+    let delayMs = ACTIVE_POLL_INTERVAL_MS;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const releaseOwner = acquireActivePollOwner();
 
     const tick = async () => {
       if (cancelled || finishing) return;
@@ -548,13 +554,26 @@ export function SingleRunPage({ modality }: { modality: Modality }) {
       }
     };
 
-    void tick();
-    const timer = setInterval(() => {
-      void tick();
-    }, ACTIVE_POLL_INTERVAL_MS);
+    const scheduleNext = () => {
+      if (cancelled) return;
+      timer = setTimeout(() => {
+        void (async () => {
+          await tick();
+          delayMs = nextActivePollDelayMs(delayMs);
+          scheduleNext();
+        })();
+      }, delayMs);
+    };
+
+    void (async () => {
+      await tick();
+      scheduleNext();
+    })();
+
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      if (timer) clearTimeout(timer);
+      releaseOwner();
     };
   }, [
     needsActivePoll,

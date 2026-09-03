@@ -109,9 +109,14 @@ Full guide: [apps/mcp/README.md](../apps/mcp/README.md)
 ```text
 GET  /v1/models  /v1/aliases  /openapi.yaml  /healthz
 POST /v1/chat/completions
-POST /v1/images/generations | /v1/images/edits | /v1/videos/generations | /v1/audio/speech | /v1/music/generations
+POST /v1/images/generations | /v1/images/edits | /v1/audio/speech | /v1/music/generations
+POST /v1/videos | /v1/videos/generations   （异步提交，二者相同）
+GET|DELETE /v1/videos/:id                  （轮询 / 取消）
+GET  /v1/videos/:id/content                （成片二进制；读本机落盘，不重拉上游）
 GET  /v1/artifacts/:id
 ```
+
+**视频（仅异步）：** `POST /v1/videos` 或别名 `POST /v1/videos/generations` 立刻返回 `{ id, status: "queued" }`；用 `GET /v1/videos/{id}` 轮询至 `completed` / `failed`。成片 URL 在 `url` / `data[].url`（优先上游 CDN）。需要经 ModelDesk 拉字节时用 `GET /v1/videos/{id}/content`（或 `GET /v1/files/{artifactId}`）。`DELETE /v1/videos/{id}` 可取消进行中任务。**已取消同步阻塞等待**，调用方必须轮询。
 
 图片 / 视频成功时，`data[].url`（及 `modeldesk.artifacts[].url`）**优先返回上游 CDN 地址**；仅当上游未给出公网 URL（例如只回了 base64）时，才回落到本机 `GET /v1/artifacts/:id`。本机仍会落盘一份，供界面与历史使用。
 

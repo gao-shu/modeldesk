@@ -110,6 +110,16 @@ export function getArtifact(id: string): ArtifactRow | null {
   return row ?? null;
 }
 
+/** Artifacts linked to a job (gateway async video status). */
+export function listArtifactsForJob(jobId: string): ArtifactPublic[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT * FROM artifacts WHERE job_id = ? ORDER BY created_at ASC`,
+    )
+    .all(jobId) as ArtifactRow[];
+  return rows.map(toPublicArtifact);
+}
+
 /**
  * Write bytes under data/artifacts/{type}/{yyyy}/{mm}/{id}.ext and insert row.
  */

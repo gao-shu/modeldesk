@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start --hostname 0.0.0.0 --port 3300",
     "lint": "eslint",
-    "test:unit": "node --experimental-strip-types --test src/lib/server/run-core-meta.test.ts"
+    "test:unit": "node --experimental-strip-types --test src/lib/server/run-core-meta.test.ts src/lib/server/gateway/video-task.test.ts src/lib/server/media-url-list.test.ts"
   },
   "dependencies": {
     "@modeldesk/adapters": "workspace:*",

@@ -866,6 +866,7 @@ async function runAudioJob(
 async function runVideoJob(input: JobExecParams): Promise<JobExecResult> {
   const started = Date.now();
   const publicModel = toPublicModel(input.row);
+  // Params already merged in run-core — only derive knobs for artifact meta.
   const apiFormat = resolveApiFormatId({
     modality: input.row.modality,
     defaults: publicModel.defaults,
@@ -873,12 +874,7 @@ async function runVideoJob(input: JobExecParams): Promise<JobExecResult> {
     baseUrl: input.row.base_url,
     modelId: input.row.model_id,
   });
-  const params = resolveRunParamsForFormat(
-    apiFormat,
-    input.row.modality,
-    publicModel.defaults,
-    input.params,
-  );
+  const params = input.params ?? {};
   const videoKnobs = videoSettingsFromParams(params, apiFormat);
 
   let httpLog: { url: string; body: Record<string, unknown> } | undefined;
@@ -888,12 +884,13 @@ async function runVideoJob(input: JobExecParams): Promise<JobExecResult> {
   touchJobHeartbeat(input.jobId);
 
   try {
-    const { getVideoRuntime } = await import("@/lib/server/model-registry");
+    const { runVideoGenerate } = await import("@/lib/server/model-registry");
 
-    const task = await getVideoRuntime().waitVideo({
-      configId: input.row.id,
+    const generated = await runVideoGenerate({
+      row: input.row,
+      apiKey: input.apiKey,
       prompt: input.prompt,
-      params: input.params ?? {},
+      params,
       signal: input.signal ?? undefined,
       timeoutMs: VIDEO_WAIT_TIMEOUT_MS, // 视频：30 分钟
       onHttpLog: (log) => {
@@ -920,11 +917,7 @@ async function runVideoJob(input: JobExecParams): Promise<JobExecResult> {
       },
     });
 
-    if (task.status !== "succeeded" || !task.artifact) {
-      throw new Error(task.error?.message ?? "Video generation failed");
-    }
-
-    const bytes = Buffer.from(task.artifact.bytes);
+    const bytes = Buffer.from(generated.bytes);
     const meta = {
       fileSize: bytes.length,
       ...(videoKnobs.width && videoKnobs.height
@@ -934,23 +927,23 @@ async function runVideoJob(input: JobExecParams): Promise<JobExecResult> {
 
     const artifact = saveArtifact({
       type: "video",
-      extension: task.artifact.extension,
-      mime: task.artifact.mime,
+      extension: generated.extension,
+      mime: generated.mime,
       bytes,
       jobId: input.jobId,
       meta: {
         source: "run-job",
         runId: input.runId,
         modelId: input.row.id,
-        remoteUrl: task.artifact.remoteUrl ?? null,
-        taskId: task.upstreamTaskId ?? null,
+        remoteUrl: generated.remoteUrl ?? null,
+        taskId: generated.taskId ?? null,
         ...meta,
       },
     });
 
     const tokens = resolveTokenCounts({
       prompt: input.prompt,
-      usage: task.usage ?? null,
+      usage: generated.usage ?? null,
     });
 
     finishJobSuccess({
@@ -958,13 +951,13 @@ async function runVideoJob(input: JobExecParams): Promise<JobExecResult> {
       jobId: input.jobId,
       content: "",
       artifactId: artifact.id,
-      remoteUrl: task.artifact.remoteUrl ?? null,
-      latencyMs: task.latencyMs ?? Date.now() - started,
+      remoteUrl: generated.remoteUrl ?? null,
+      latencyMs: generated.latencyMs ?? Date.now() - started,
       ttftMs: null,
       inputTokens: tokens.inputTokens,
       outputTokens: tokens.outputTokens,
       extraResponse: {
-        taskId: task.upstreamTaskId ?? null,
+        taskId: generated.taskId ?? null,
         ...(httpLog ? { _httpLog: httpLog } : {}),
         _artifactMeta: meta,
       },
@@ -972,7 +965,7 @@ async function runVideoJob(input: JobExecParams): Promise<JobExecResult> {
 
     return {
       ok: true,
-      latencyMs: task.latencyMs ?? Date.now() - started,
+      latencyMs: generated.latencyMs ?? Date.now() - started,
       ttftMs: null,
       inputTokens: tokens.inputTokens,
       outputTokens: tokens.outputTokens,

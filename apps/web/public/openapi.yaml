@@ -135,9 +135,13 @@ paths:
       responses:
         "200":
           description: Image result (same shape as /v1/images/generations)
-  /v1/videos/generations:
+  /v1/videos:
     post:
-      summary: Video generation
+      summary: Async video generation (submit task)
+      description: >
+        Returns immediately with a task `id` (eval job id). Poll
+        `GET /v1/videos/{id}` until `status` is `completed` or `failed`.
+        Preferred path. `/v1/videos/generations` is an alias with the same async contract.
       requestBody:
         required: true
         content:
@@ -146,7 +150,91 @@ paths:
               $ref: "#/components/schemas/MediaGenerate"
       responses:
         "200":
-          description: Video result
+          description: Task accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VideoTask"
+  /v1/videos/{id}:
+    get:
+      summary: Get async video task status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Job id from POST /v1/videos (run id also accepted)
+      responses:
+        "200":
+          description: Task status (and url/data when completed)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VideoTask"
+        "404":
+          description: Unknown task
+    delete:
+      summary: Cancel an in-flight video task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Cancelled (or current terminal status)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VideoTask"
+  /v1/videos/{id}/content:
+    get:
+      summary: Download completed video bytes
+      description: >
+        OpenAI Videos–shaped binary download. Serves the local artifact saved when
+        the task completed (no upstream re-fetch). Poll until `completed` first.
+        Prefer CDN `url` from GET /v1/videos/{id} when present; use this when you
+        need bytes via ModelDesk (or when there is no public CDN URL).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Job id from POST /v1/videos (run id also accepted)
+      responses:
+        "200":
+          description: Video binary (typically video/mp4)
+          content:
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Unknown task or missing local artifact
+        "409":
+          description: Task not completed yet
+  /v1/videos/generations:
+    post:
+      summary: Async video generation (alias of POST /v1/videos)
+      description: >
+        Same as `POST /v1/videos`: returns immediately with task `id`.
+        Poll `GET /v1/videos/{id}` until completed. No synchronous wait.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MediaGenerate"
+      responses:
+        "200":
+          description: Task accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VideoTask"
   /v1/audio/speech:
     post:
       summary: Audio / TTS generation
@@ -232,3 +320,52 @@ components:
           type: string
         voice:
           type: string
+    VideoTask:
+      type: object
+      required: [id, object, status]
+      properties:
+        id:
+          type: string
+          description: Eval job id (poll with GET /v1/videos/{id})
+        object:
+          type: string
+          enum: [video]
+        created_at:
+          type: integer
+        status:
+          type: string
+          enum: [queued, in_progress, completed, failed]
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+        model:
+          type: string
+        url:
+          type: string
+          description: Present when status=completed (CDN preferred)
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              url:
+                type: string
+              remoteUrl:
+                type: string
+                nullable: true
+              mime:
+                type: string
+                nullable: true
+              id:
+                type: string
+        error:
+          type: object
+          properties:
+            message:
+              type: string
+            type:
+              type: string
+        modeldesk:
+          type: object
+          additionalProperties: true

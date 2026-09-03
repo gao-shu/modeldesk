@@ -27,7 +27,14 @@ import {
   publicOrigin,
   readJsonBody,
 } from "./http";
-import { mediaGenerateResponse, modeldeskRunResponse } from "./media";
+import {
+  mediaGenerateResponse,
+  modeldeskRunResponse,
+  videosCancelResponse,
+  videosContentResponse,
+  videosStatusResponse,
+  videosSubmitResponse,
+} from "./media";
 import {
   aliasEntriesForModelsList,
   listGatewayModels,
@@ -247,8 +254,26 @@ export async function handleGatewayRequest(req: Request): Promise<Response> {
       imageEdits: true,
     });
   }
-  if (req.method === "POST" && pathname === "/v1/videos/generations") {
-    return mediaGenerateResponse(req, { modality: "video", origin });
+  // Both paths are async submit (same response). Sync wait was removed — poll GET /v1/videos/{id}.
+  if (
+    req.method === "POST" &&
+    (pathname === "/v1/videos" || pathname === "/v1/videos/generations")
+  ) {
+    return videosSubmitResponse(req, { origin });
+  }
+  const videoContentMatch = pathname.match(/^\/v1\/videos\/([^/]+)\/content$/);
+  if (req.method === "GET" && videoContentMatch) {
+    return videosContentResponse(decodeURIComponent(videoContentMatch[1]!));
+  }
+  const videoMatch = pathname.match(/^\/v1\/videos\/([^/]+)$/);
+  if (videoMatch) {
+    const videoId = decodeURIComponent(videoMatch[1]!);
+    if (req.method === "GET") {
+      return videosStatusResponse(videoId, { origin });
+    }
+    if (req.method === "DELETE") {
+      return videosCancelResponse(videoId, { origin });
+    }
   }
   if (req.method === "POST" && pathname === "/v1/audio/speech") {
     return mediaGenerateResponse(req, { modality: "audio", origin });

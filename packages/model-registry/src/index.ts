@@ -17,9 +17,3 @@ export {
   type ModelRegistry,
   type TestConfigFn,
 } from "./registry";
-export {
-  createVideoRuntime,
-  type VideoGenerateAdapterInput,
-  type VideoGenerateAdapterResult,
-  type VideoRuntime,
-} from "./video-runtime";
