@@ -98,7 +98,7 @@ Manual example shape:
 }
 ```
 
-Tools: `list_models`, `list_active_runs`, `cancel_run`, `run_text` / `run_image` / `run_video` / `run_audio` / `run_music`.
+Tools: `list_models`, `list_active_runs`, `cancel_run`, `run_text` / `run_image` / `run_video` / `run_audio`.
 
 Full guide: [apps/mcp/README.md](../apps/mcp/README.md)
 
@@ -109,10 +109,14 @@ Full guide: [apps/mcp/README.md](../apps/mcp/README.md)
 ```text
 GET  /v1/models  /v1/aliases  /openapi.yaml  /healthz
 POST /v1/chat/completions
+<<<<<<< Updated upstream
 POST /v1/images/generations | /v1/images/edits | /v1/audio/speech | /v1/music/generations
 POST /v1/videos | /v1/videos/generations   （异步提交，二者相同）
 GET|DELETE /v1/videos/:id                  （轮询 / 取消）
 GET  /v1/videos/:id/content                （成片二进制；读本机落盘，不重拉上游）
+=======
+POST /v1/images/generations | /v1/images/edits | /v1/videos/generations | /v1/audio/speech
+>>>>>>> Stashed changes
 GET  /v1/artifacts/:id
 ```
 

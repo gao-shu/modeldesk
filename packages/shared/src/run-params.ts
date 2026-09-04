@@ -6,8 +6,7 @@ export type RunParamModality =
   | "text"
   | "image"
   | "video"
-  | "audio"
-  | "music";
+  | "audio";
 
 export type RunParamFieldType =
   | "number"
@@ -360,35 +359,6 @@ export const RUN_PARAM_FIELDS_BY_MODALITY: Record<
       step: 0.1,
     },
   ],
-  music: [
-    {
-      key: "is_instrumental",
-      label: "纯伴奏",
-      type: "boolean",
-      defaultValue: "false",
-    },
-    {
-      key: "lyrics_optimizer",
-      label: "自动写词",
-      type: "boolean",
-      defaultValue: "true",
-    },
-    {
-      key: "duration_sec",
-      label: "目标时长（秒）",
-      type: "number",
-      defaultValue: "",
-      min: 1,
-      max: 300,
-      step: 1,
-    },
-    {
-      key: "lyrics",
-      label: "歌词",
-      type: "textarea",
-      defaultValue: "",
-    },
-  ],
 };
 
 function normalizeImageSizeValue(raw: string): string {
@@ -412,8 +382,6 @@ function pickDefault(
 ): string {
   const aliases: Record<string, string[]> = {
     max_tokens: ["max_tokens", "maxTokens"],
-    is_instrumental: ["is_instrumental", "isInstrumental"],
-    lyrics_optimizer: ["lyrics_optimizer", "lyricsOptimizer"],
     aspect_ratio: ["aspect_ratio", "aspectRatio"],
     duration_sec: ["duration_sec", "durationSec", "duration"],
     duration: ["duration", "duration_sec", "durationSec"],

@@ -14,7 +14,6 @@ import {
   runAudio,
   runCoreResultToPublic,
   runImage,
-  runMusic,
   runText,
   runVideo,
   type RunCoreAgentModality,
@@ -29,16 +28,15 @@ const AGENT_MODALITIES = new Set([
   "image",
   "video",
   "audio",
-  "music",
 ]);
 
 function printHelp() {
   console.log(`ModelDesk CLI ${VERSION} - shared run-core (same DB / keys as Web · MCP)
 
 Usage:
-  modeldesk list [--modality text|image|video|audio|music]
+  modeldesk list [--modality text|image|video|audio]
   modeldesk run text  --model <registryId> --prompt <text> [--temperature n] [--max-tokens n]
-  modeldesk run image|video|audio|music --model <registryId> --prompt <text> [--params <json>]
+  modeldesk run image|video|audio --model <registryId> --prompt <text> [--params <json>]
   modeldesk --version
 
 Env:
@@ -116,7 +114,7 @@ async function cmdRun(args: string[]) {
   const modality = args[0];
   if (!modality || !AGENT_MODALITIES.has(modality)) {
     console.error(
-      'run requires modality "text" | "image" | "video" | "audio" | "music"',
+      'run requires modality "text" | "image" | "video" | "audio"',
     );
     process.exit(2);
   }
@@ -154,7 +152,6 @@ async function cmdRun(args: string[]) {
     image: runImage,
     video: runVideo,
     audio: runAudio,
-    music: runMusic,
   } as const;
   const runFn = runners[modality as keyof typeof runners];
   const outcome = await runFn({ modelId, prompt, params });

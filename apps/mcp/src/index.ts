@@ -18,7 +18,6 @@ import {
   runAudio,
   runCoreResultToPublic,
   runImage,
-  runMusic,
   runText,
   runVideo,
   type RunCoreAgentModality,
@@ -175,7 +174,7 @@ function modelResolveError(error: string) {
   };
 }
 
-const modalitySchema = z.enum(["text", "image", "video", "audio", "music"]);
+const modalitySchema = z.enum(["text", "image", "video", "audio"]);
 
 function createServer(): McpServer {
   const server = new McpServer({
@@ -185,7 +184,7 @@ function createServer(): McpServer {
 
   server.tool(
     "list_models",
-    "List ModelDesk-registered models for agent tools (text/image/video/audio/music). Same local DB as the Web UI when Desk is running (follows :3300 dataDir).",
+    "List ModelDesk-registered models for agent tools (text/image/video/audio). Same local DB as the Web UI when Desk is running (follows :3300 dataDir).",
     {
       modality: modalitySchema
         .optional()
@@ -409,41 +408,6 @@ function createServer(): McpServer {
     },
   );
 
-  server.tool(
-    "run_music",
-    "Run a music model. modelId: registry UUID or unique config name.",
-    {
-      modelId: z
-        .string()
-        .min(1)
-        .describe("Registry UUID or unique config name from list_models"),
-      prompt: z.string().min(1).describe("Music prompt"),
-      params: z
-        .record(z.unknown())
-        .optional()
-        .describe("Optional run params mirroring the music UI"),
-    },
-    async ({ modelId, prompt, params }) => {
-      const resolved = resolveRunModelId(modelId, "music");
-      if (!resolved.ok) return modelResolveError(resolved.error);
-      return runTracked(
-        "run_music",
-        { modelId: resolved.modelId, promptLen: prompt.length },
-        (onRunId) =>
-          runMusic(
-            withAbortTracking(
-              {
-                modelId: resolved.modelId,
-                prompt,
-                params: params ?? null,
-              },
-              onRunId,
-            ),
-          ),
-      );
-    },
-  );
-
   return server;
 }
 
@@ -465,7 +429,7 @@ async function main() {
     );
   }
   log(
-    "starting stdio server (list_models / list_active_runs / cancel_run / run_text|image|video|audio|music)",
+    "starting stdio server (list_models / list_active_runs / cancel_run / run_text|image|video|audio)",
   );
 
   const server = createServer();

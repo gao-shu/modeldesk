@@ -7,7 +7,7 @@ info:
     Default: same process as Web/Desktop on :3300.
     Optional headless: modeldesk-gateway on :3310.
     Not a multi-tenant SaaS. Prefer bind 127.0.0.1.
-    Stable aliases: llm-default, image-default, video-default, audio-default, music-default.
+    Stable aliases: llm-default, image-default, video-default, audio-default.
 servers:
   - url: http://127.0.0.1:3300
   - url: http://127.0.0.1:3310
@@ -38,7 +38,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [text, image, video, audio, music]
+            enum: [text, image, video, audio]
       responses:
         "200":
           description: >
@@ -247,18 +247,6 @@ paths:
       responses:
         "200":
           description: Audio result (JSON + artifact URL)
-  /v1/music/generations:
-    post:
-      summary: Music generation
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/MediaGenerate"
-      responses:
-        "200":
-          description: Music result
   /v1/modeldesk/run:
     post:
       summary: Unified non-text run
@@ -273,7 +261,7 @@ paths:
                   properties:
                     modality:
                       type: string
-                      enum: [image, video, audio, music]
+                      enum: [image, video, audio]
       responses:
         "200":
           description: Run result

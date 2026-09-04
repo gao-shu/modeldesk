@@ -29,7 +29,6 @@ const RESERVED_CONFIG_NAMES = new Set([
   "image-default",
   "video-default",
   "audio-default",
-  "music-default",
 ]);
 
 function normalizeConfigName(name: string): string {

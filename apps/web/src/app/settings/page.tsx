@@ -34,7 +34,7 @@ type StorageConfig = {
   updatedAt: string | null;
 };
 
-  type AgentBinsStatus = {
+type AgentBinsStatus = {
     binDir: string;
     installed: boolean;
     commands: string[];
@@ -47,14 +47,14 @@ type StorageConfig = {
     mcpCodexTomlExample?: string;
   };
 
-  type DiskBucket = {
+type DiskBucket = {
     id: string;
     label: string;
     bytes: number;
     files: number;
   };
 
-  type DiskUsage = {
+type DiskUsage = {
     dataDir: string;
     totalBytes: number;
     dbBytes: number;
@@ -63,7 +63,7 @@ type StorageConfig = {
     buckets: DiskBucket[];
   };
 
-  type StorageStatus = {
+type StorageStatus = {
     dataDir: string;
     dbPath: string;
     defaultDataDir?: string;
@@ -79,79 +79,41 @@ type StorageConfig = {
     agentBins?: AgentBinsStatus;
   };
 
-const PROVIDER_OPTIONS = [
-  { id: "tos", label: "火山 TOS" },
-  { id: "qiniu", label: "七牛 Kodo" },
-  { id: "s3", label: "S3 兼容" },
-  { id: "oss", label: "阿里云 OSS" },
-  { id: "cos", label: "腾讯云 COS" },
-  { id: "bos", label: "百度云 BOS" },
-] as const;
+/** UI 仅保留 S3 兼容；七牛 / MinIO / 各云 S3 网关都填这一套。 */
+const STORAGE_PROVIDER = "s3" as const;
 
-type ProviderId = (typeof PROVIDER_OPTIONS)[number]["id"];
-
-/** Fake fill-in examples only — never real credentials. */
-const FIELD_EXAMPLES: Record<
-  ProviderId,
-  {
-    bucket: string;
-    region: string;
-    endpoint: string;
-    accessKey: string;
-    secretKey: string;
-    publicBaseUrl: string;
-  }
-> = {
-  tos: {
-    bucket: "my-demo-bucket",
-    region: "cn-beijing",
-    endpoint: "tos-cn-beijing.volces.com",
-    accessKey: "AKLTxxxxxxxxDemoAccessKeyIdxxxxx",
-    secretKey: "xxxxxxxxDemoSecretAccessKeyxxxxxxxx",
-    publicBaseUrl: "https://my-demo-bucket.tos-cn-beijing.volces.com",
-  },
-  s3: {
-    bucket: "my-s3-bucket",
-    region: "us-east-1",
-    endpoint: "s3.amazonaws.com",
-    accessKey: "AKIAxxxxxxxxEXAMPLE",
-    secretKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-    publicBaseUrl: "https://my-s3-bucket.s3.amazonaws.com",
-  },
-  qiniu: {
-    bucket: "images-temp",
-    region: "cn-north-1",
-    endpoint: "s3.cn-north-1.qiniucs.com",
-    accessKey: "xxxxxxxxDemoQiniuAccessKey",
-    secretKey: "xxxxxxxxDemoQiniuSecretKeyxxxxxxxx",
-    publicBaseUrl: "https://img.learncom.cn",
-  },
-  oss: {
-    bucket: "my-oss-bucket",
-    region: "oss-cn-hangzhou",
-    endpoint: "oss-cn-hangzhou.aliyuncs.com",
-    accessKey: "LTAI5txxxxxxxxDemoKey",
-    secretKey: "xxxxxxxxDemoOssSecretKeyxxxxxxxx",
-    publicBaseUrl: "https://my-oss-bucket.oss-cn-hangzhou.aliyuncs.com",
-  },
-  cos: {
-    bucket: "my-cos-bucket-1250000000",
-    region: "ap-guangzhou",
-    endpoint: "",
-    accessKey: "AKIDxxxxxxxxDemoSecretId",
-    secretKey: "xxxxxxxxDemoCosSecretKeyxxxxxxxx",
-    publicBaseUrl:
-      "https://my-cos-bucket-1250000000.cos.ap-guangzhou.myqcloud.com",
-  },
-  bos: {
-    bucket: "my-bos-bucket",
-    region: "",
-    endpoint: "bj.bcebos.com",
-    accessKey: "xxxxxxxxDemoBosAccessKey",
-    secretKey: "xxxxxxxxDemoBosSecretKeyxxxxxxxx",
-    publicBaseUrl: "https://my-bos-bucket.bj.bcebos.com",
-  },
+type FieldExample = {
+  bucket: string;
+  region: string;
+  endpoint: string;
+  accessKey: string;
+  secretKey: string;
+  publicBaseUrl: string;
 };
+
+/** 非密钥预填默认按七牛 S3 兼容；占位为中英对照。 */
+const S3_FIELD_EXAMPLES: FieldExample = {
+  bucket: "images-temp",
+  region: "cn-north-1",
+  endpoint: "s3.cn-north-1.qiniucs.com",
+  accessKey: "你的AccessKey / YourAccessKey",
+  secretKey: "你的SecretKey / YourSecretKey",
+  publicBaseUrl: "https://img.example.com",
+};
+
+const FIELD_HINTS = {
+  bucket: "存储桶名称 · Bucket name（例：images-temp）",
+  accessKey: "访问密钥 · Access Key（七牛控制台 / AWS IAM）",
+  secretKey: "密钥 · Secret Key（只保存在本机）",
+  region: "区域 · Region（七牛例：cn-north-1；AWS 例：us-east-1）",
+  endpoint:
+    "S3 接口地址 · Endpoint（七牛例：s3.cn-north-1.qiniucs.com；勿带 https://）",
+  publicBaseUrl:
+    "公网访问前缀 · Public base URL（须 HTTPS，末尾不要 /）",
+  forcePathStyle:
+    "强制路径风格 · Force path style（七牛一般关；部分 MinIO 需开）",
+  skipAcl: "跳过 ACL · Skip ACL（七牛 Kodo 建议开）",
+} as const;
 
 type FormState = {
   bucket: string;
@@ -164,11 +126,7 @@ type FormState = {
   skipAcl: boolean;
 };
 
-function emptyForm(providerId?: string): FormState {
-  const skipAclDefault =
-    providerId === "qiniu" ||
-    providerId === "oss" ||
-    providerId === "cos";
+function emptyForm(): FormState {
   return {
     bucket: "",
     region: "",
@@ -177,18 +135,15 @@ function emptyForm(providerId?: string): FormState {
     secretKey: "",
     publicBaseUrl: "",
     forcePathStyle: false,
-    skipAcl: skipAclDefault,
+    skipAcl: true,
   };
 }
 
 /** Prefill non-secret infra fields for faster new-machine setup (never real keys). */
-function formFromExamples(providerId: string): FormState {
-  const id = (providerId in FIELD_EXAMPLES
-    ? providerId
-    : "tos") as ProviderId;
-  const ex = FIELD_EXAMPLES[id];
+function formFromExamples(): FormState {
+  const ex = S3_FIELD_EXAMPLES;
   return {
-    ...emptyForm(id),
+    ...emptyForm(),
     bucket: ex.bucket,
     region: ex.region,
     endpoint: ex.endpoint,
@@ -196,19 +151,32 @@ function formFromExamples(providerId: string): FormState {
   };
 }
 
-function formFromConfig(
-  cfg: StorageConfig | null | undefined,
-  providerId?: string,
-): FormState {
-  if (!cfg) return emptyForm(providerId);
-  const hasInfra =
+function configLooksReady(cfg: StorageConfig | null | undefined): boolean {
+  if (!cfg) return false;
+  return (
     Boolean(cfg.bucket?.trim()) ||
     Boolean(cfg.region?.trim()) ||
     Boolean(cfg.endpoint?.trim()) ||
     Boolean(cfg.publicBaseUrl?.trim()) ||
     Boolean(cfg.hasAccessKey) ||
-    Boolean(cfg.hasSecretKey);
-  if (!hasInfra) return formFromExamples(providerId ?? cfg.provider);
+    Boolean(cfg.hasSecretKey) ||
+    Boolean(cfg.updatedAt)
+  );
+}
+
+/** Prefer s3 row; otherwise reuse legacy qiniu/tos/… values into the S3 form. */
+function pickStorageConfig(list: StorageConfig[]): StorageConfig | null {
+  const order = ["s3", "qiniu", "tos", "oss", "cos", "bos"];
+  for (const id of order) {
+    const cfg = list.find((c) => c.provider === id) ?? null;
+    if (configLooksReady(cfg)) return cfg;
+  }
+  return list.find((c) => c.provider === STORAGE_PROVIDER) ?? null;
+}
+
+function formFromConfig(cfg: StorageConfig | null | undefined): FormState {
+  if (!cfg) return emptyForm();
+  if (!configLooksReady(cfg)) return formFromExamples();
   return {
     bucket: cfg.bucket ?? "",
     region: cfg.region ?? "",
@@ -230,7 +198,7 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [enabled, setEnabled] = useState(false);
-  const [provider, setProvider] = useState<string>("tos");
+  const [provider, setProvider] = useState<string>(STORAGE_PROVIDER);
   const [configs, setConfigs] = useState<StorageConfig[]>([]);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saveBusy, setSaveBusy] = useState(false);
@@ -261,18 +229,14 @@ export default function SettingsPage() {
   const [cleanupMessage, setCleanupMessage] = useState<string | null>(null);
   const [cleanupError, setCleanupError] = useState<string | null>(null);
 
-  const applyConfigForProvider = useCallback(
-    (nextProvider: string, list: StorageConfig[]) => {
-      const cfg = list.find((c) => c.provider === nextProvider) ?? null;
-      if (!cfg) {
-        // 新电脑 / 未保存过该厂商：预填非密钥示例字段（七牛等）
-        setForm(formFromExamples(nextProvider));
-        return;
-      }
-      setForm(formFromConfig(cfg, nextProvider));
-    },
-    [],
-  );
+  const applyStorageForm = useCallback((list: StorageConfig[]) => {
+    const cfg = pickStorageConfig(list);
+    if (!cfg) {
+      setForm(formFromExamples());
+      return;
+    }
+    setForm(formFromConfig(cfg));
+  }, []);
 
   const refresh = useCallback(async () => {
     setError(null);
@@ -301,24 +265,22 @@ export default function SettingsPage() {
 
     const os =
       settingsData.objectStorage ?? statusData.storage.objectStorage;
-    const nextProvider = os?.selectedProvider || "tos";
     const list = settingsData.configs ?? [];
     setConfigs(list);
     if (os) {
       setEnabled(Boolean(os.enabled));
-      setProvider(nextProvider);
     }
-    applyConfigForProvider(nextProvider, list);
-  }, [applyConfigForProvider]);
+    setProvider(STORAGE_PROVIDER);
+    applyStorageForm(list);
+  }, [applyStorageForm]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
-  const currentConfig =
-    configs.find((c) => c.provider === provider) ?? null;
+  const currentConfig = pickStorageConfig(configs);
 
-  async function savePrefs(nextEnabled: boolean, nextProvider: string) {
+  async function savePrefs(nextEnabled: boolean, _nextProvider?: string) {
     setSaveBusy(true);
     setObjectError(null);
     setTestMessage(null);
@@ -330,7 +292,7 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           enabled: nextEnabled,
-          provider: nextProvider,
+          provider: STORAGE_PROVIDER,
         }),
       });
       const data = (await res.json()) as {
@@ -344,10 +306,10 @@ export default function SettingsPage() {
         return;
       }
       setEnabled(nextEnabled);
-      setProvider(nextProvider);
+      setProvider(STORAGE_PROVIDER);
       if (data.configs) {
         setConfigs(data.configs);
-        applyConfigForProvider(nextProvider, data.configs);
+        applyStorageForm(data.configs);
       }
       if (nextEnabled && data.objectStorage && !data.objectStorage.configured) {
         setObjectError("密钥未配齐，请先填写并保存配置");
@@ -370,7 +332,7 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           enabled,
-          provider,
+          provider: STORAGE_PROVIDER,
           config: {
             bucket: form.bucket,
             region: form.region,
@@ -394,7 +356,7 @@ export default function SettingsPage() {
       }
       if (data.configs) {
         setConfigs(data.configs);
-        applyConfigForProvider(provider, data.configs);
+        applyStorageForm(data.configs);
       }
       await refresh();
     } finally {
@@ -688,7 +650,7 @@ await md.imagesGenerations({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           enabled,
-          provider,
+          provider: STORAGE_PROVIDER,
           clearConfig: true,
         }),
       });
@@ -703,9 +665,9 @@ await md.imagesGenerations({
       }
       if (data.configs) {
         setConfigs(data.configs);
-        applyConfigForProvider(provider, data.configs);
+        applyStorageForm(data.configs);
       } else {
-        setForm(formFromExamples(provider));
+        setForm(formFromExamples());
       }
       await refresh();
     } finally {
@@ -725,15 +687,7 @@ await md.imagesGenerations({
   const gwSnippets = status?.dataDir
     ? gatewaySnippets(status.dataDir)
     : null;
-  const p = provider as ProviderId;
-  const examples = FIELD_EXAMPLES[p] ?? FIELD_EXAMPLES.tos;
-  const accessKeyLabel = p === "cos" ? "SecretId" : "Access Key";
-  const showRegion =
-    p === "tos" || p === "s3" || p === "qiniu" || p === "oss" || p === "cos";
-  const showEndpoint =
-    p === "tos" || p === "s3" || p === "qiniu" || p === "oss" || p === "bos";
-  const showForcePath = p === "s3" || p === "qiniu";
-  const showSkipAcl = p === "s3" || p === "qiniu" || p === "oss" || p === "cos";
+  const examples = S3_FIELD_EXAMPLES;
 
   return (
     <div>
@@ -1121,9 +1075,9 @@ ${gwSnippets.image}
               <p className="mt-1 text-sm text-zinc-500">
                 {enabled
                   ? status?.objectStorage?.configured
-                    ? `已启用 · ${PROVIDER_OPTIONS.find((o) => o.id === provider)?.label ?? provider} 可用${sourceLabel ? `（${sourceLabel}）` : ""}`
-                    : "已启用 · 请填写并保存下方配置"
-                  : "默认关闭 · 开启后可配置云存储"}
+                    ? `已启用 · S3 兼容可用${sourceLabel ? `（${sourceLabel}）` : ""}`
+                    : "已启用 · 请填写并保存下方 S3 兼容配置"
+                  : "默认关闭 · 开启后可配置七牛 / MinIO / AWS 等 S3 兼容存储"}
               </p>
             </div>
             <button
@@ -1131,7 +1085,7 @@ ${gwSnippets.image}
               role="switch"
               aria-checked={enabled}
               disabled={saveBusy}
-              onClick={() => void savePrefs(!enabled, provider)}
+              onClick={() => void savePrefs(!enabled, STORAGE_PROVIDER)}
               className={`relative h-7 w-12 rounded-full transition-colors disabled:opacity-50 ${
                 enabled ? "bg-zinc-900" : "bg-zinc-300"
               }`}
@@ -1155,36 +1109,12 @@ ${gwSnippets.image}
           ) : (
             <>
               <p className="mt-3 text-xs leading-relaxed text-zinc-500">
-                用于把本地媒体上传为公网 URL。部分图片 / 视频模型不接受本地文件，需要 URL。
+                用于把本地媒体上传为公网 URL。统一使用{" "}
+                <span className="font-medium text-zinc-700">S3 兼容</span>
+                协议（七牛 Kodo / MinIO / AWS / 各云 S3 网关）。未保存过时预填七牛常见示例；占位为中英对照。
               </p>
 
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                <select
-                  value={provider}
-                  disabled={saveBusy}
-                  onChange={(e) => {
-                    const next = e.target.value;
-                    setProvider(next);
-                    applyConfigForProvider(next, configs);
-                    setTestMessage(null);
-                    setTestOk(null);
-                    setTestUrl(null);
-                    void savePrefs(enabled, next);
-                  }}
-                  className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm text-zinc-900"
-                >
-                  {PROVIDER_OPTIONS.map((opt) => {
-                    const ready = providers.find(
-                      (row) => row.provider === opt.id,
-                    )?.ready;
-                    return (
-                      <option key={opt.id} value={opt.id}>
-                        {opt.label}
-                        {ready ? "（已配置）" : "（未配置）"}
-                      </option>
-                    );
-                  })}
-                </select>
                 <button
                   type="button"
                   disabled={saveBusy}
@@ -1244,7 +1174,7 @@ ${gwSnippets.image}
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <label className="md-field">
-                  <span className="md-label">Bucket</span>
+                  <span className="md-label">存储桶 · Bucket</span>
                   <input
                     value={form.bucket}
                     onChange={(e) =>
@@ -1254,9 +1184,12 @@ ${gwSnippets.image}
                     className={fieldClass()}
                     autoComplete="off"
                   />
+                  <span className="mt-1 text-[11px] text-zinc-400">
+                    {FIELD_HINTS.bucket}
+                  </span>
                 </label>
                 <label className="md-field">
-                  <span className="md-label">{accessKeyLabel}</span>
+                  <span className="md-label">访问密钥 · Access Key</span>
                   <input
                     value={form.accessKey}
                     onChange={(e) =>
@@ -1264,15 +1197,19 @@ ${gwSnippets.image}
                     }
                     placeholder={
                       currentConfig?.hasAccessKey
-                        ? (currentConfig.accessKeyMasked ?? "已保存，留空不改")
+                        ? (currentConfig.accessKeyMasked ??
+                          "已保存，留空不改 / Saved — leave blank")
                         : examples.accessKey
                     }
                     className={fieldClass()}
                     autoComplete="off"
                   />
+                  <span className="mt-1 text-[11px] text-zinc-400">
+                    {FIELD_HINTS.accessKey}
+                  </span>
                 </label>
                 <label className="md-field">
-                  <span className="md-label">Secret Key</span>
+                  <span className="md-label">密钥 · Secret Key</span>
                   <input
                     type="password"
                     value={form.secretKey}
@@ -1281,43 +1218,49 @@ ${gwSnippets.image}
                     }
                     placeholder={
                       currentConfig?.hasSecretKey
-                        ? (currentConfig.secretKeyMasked ?? "已保存，留空不改")
+                        ? (currentConfig.secretKeyMasked ??
+                          "已保存，留空不改 / Saved — leave blank")
                         : examples.secretKey
                     }
                     className={fieldClass()}
                     autoComplete="new-password"
                   />
+                  <span className="mt-1 text-[11px] text-zinc-400">
+                    {FIELD_HINTS.secretKey}
+                  </span>
                 </label>
-                {showRegion ? (
-                  <label className="md-field">
-                    <span className="md-label">Region</span>
-                    <input
-                      value={form.region}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, region: e.target.value }))
-                      }
-                      placeholder={examples.region}
-                      className={fieldClass()}
-                      autoComplete="off"
-                    />
-                  </label>
-                ) : null}
-                {showEndpoint ? (
-                  <label className="md-field">
-                    <span className="md-label">Endpoint</span>
-                    <input
-                      value={form.endpoint}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, endpoint: e.target.value }))
-                      }
-                      placeholder={examples.endpoint}
-                      className={fieldClass()}
-                      autoComplete="off"
-                    />
-                  </label>
-                ) : null}
+                <label className="md-field">
+                  <span className="md-label">区域 · Region</span>
+                  <input
+                    value={form.region}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, region: e.target.value }))
+                    }
+                    placeholder={examples.region}
+                    className={fieldClass()}
+                    autoComplete="off"
+                  />
+                  <span className="mt-1 text-[11px] text-zinc-400">
+                    {FIELD_HINTS.region}
+                  </span>
+                </label>
+                <label className="md-field">
+                  <span className="md-label">接口地址 · Endpoint</span>
+                  <input
+                    value={form.endpoint}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, endpoint: e.target.value }))
+                    }
+                    placeholder={examples.endpoint}
+                    className={fieldClass()}
+                    autoComplete="off"
+                  />
+                  <span className="mt-1 text-[11px] text-zinc-400">
+                    {FIELD_HINTS.endpoint}
+                  </span>
+                </label>
                 <label className="md-field sm:col-span-2">
-                  <span className="md-label">Public Base URL</span>
+                  <span className="md-label">公网访问域名 · Public Base URL</span>
                   <input
                     value={form.publicBaseUrl}
                     onChange={(e) =>
@@ -1330,37 +1273,38 @@ ${gwSnippets.image}
                     className={fieldClass()}
                     autoComplete="off"
                   />
+                  <span className="mt-1 text-[11px] text-zinc-400">
+                    {FIELD_HINTS.publicBaseUrl}
+                  </span>
                 </label>
-                {showForcePath ? (
-                  <label className="flex items-center gap-2 text-sm text-zinc-600">
-                    <input
-                      type="checkbox"
-                      checked={form.forcePathStyle}
-                      onChange={(e) =>
-                        setForm((f) => ({
-                          ...f,
-                          forcePathStyle: e.target.checked,
-                        }))
-                      }
-                    />
-                    Force path style
-                  </label>
-                ) : null}
-                {showSkipAcl ? (
-                  <label className="flex items-center gap-2 text-sm text-zinc-600">
-                    <input
-                      type="checkbox"
-                      checked={form.skipAcl}
-                      onChange={(e) =>
-                        setForm((f) => ({
-                          ...f,
-                          skipAcl: e.target.checked,
-                        }))
-                      }
-                    />
-                    Skip ACL
-                  </label>
-                ) : null}
+                <label className="flex items-start gap-2 text-sm text-zinc-600">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={form.forcePathStyle}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        forcePathStyle: e.target.checked,
+                      }))
+                    }
+                  />
+                  <span>{FIELD_HINTS.forcePathStyle}</span>
+                </label>
+                <label className="flex items-start gap-2 text-sm text-zinc-600">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={form.skipAcl}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        skipAcl: e.target.checked,
+                      }))
+                    }
+                  />
+                  <span>{FIELD_HINTS.skipAcl}</span>
+                </label>
               </div>
             </>
           )}

@@ -7,7 +7,6 @@ export const MODALITIES = [
   "image",
   "video",
   "audio",
-  "music",
 ] as const;
 
 export type Modality = (typeof MODALITIES)[number];
@@ -18,7 +17,6 @@ export const MODALITY_LABELS: Record<Modality, string> = {
   image: "图片",
   video: "视频",
   audio: "语音",
-  music: "音乐",
 };
 
 /** Single source of truth for modality display text. */
@@ -36,7 +34,6 @@ export const CAPABILITIES = [
   "img2video",
   "tts",
   "stt",
-  "text2music",
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];
@@ -51,7 +48,6 @@ export const CAPABILITY_LABELS: Record<Capability, string> = {
   img2video: "图生视频",
   tts: "语音合成",
   stt: "语音识别",
-  text2music: "文生音乐",
 };
 
 export function capabilityLabel(
@@ -67,7 +63,6 @@ export const CAPABILITIES_BY_MODALITY: Record<Modality, readonly Capability[]> =
     image: ["text2img", "img2img"],
     video: ["text2video", "img2video"],
     audio: ["tts", "stt"],
-    music: ["text2music"],
   };
 
 export const RUN_MODES = ["single", "compare"] as const;
@@ -167,13 +162,6 @@ export const EXTENDED_PROVIDER_PRESETS = [
     baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
     defaultModelId: "doubao-seedream-4-5-251128",
     modalities: ["image", "video"] as const,
-  },
-  {
-    id: "minimax-music",
-    label: "MiniMax 音乐",
-    baseUrl: "https://api.minimaxi.com/v1",
-    defaultModelId: "music-3.0-free",
-    modalities: ["music"] as const,
   },
   {
     id: "minimax-tts",
@@ -278,7 +266,6 @@ export const DEFAULT_PARAM_KEYS_BY_MODALITY: Record<
   image: ["n", "size", "quality", "ratio", "reference_images"],
   video: ["duration_sec", "resolution", "aspect_ratio"],
   audio: ["voice", "speed"],
-  music: ["is_instrumental", "lyrics_optimizer", "duration_sec", "lyrics"],
 };
 
 export {

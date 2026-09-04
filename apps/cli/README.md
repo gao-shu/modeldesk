@@ -21,7 +21,6 @@ modeldesk run text  --model <registryId> --prompt "hello"
 modeldesk run image --model <registryId> --prompt "a cat" --params "{\"size\":\"1K\"}"
 modeldesk run video --model <registryId> --prompt "…"
 modeldesk run audio --model <registryId> --prompt "…"
-modeldesk run music --model <registryId> --prompt "…"
 ```
 
 Set `MODELDESK_DATA_DIR` to the **same** directory as Web → Settings. Prefer the shared `{dataDir}/.encryption-secret`.

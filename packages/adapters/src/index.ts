@@ -33,7 +33,6 @@ export {
 
 export {
   synthesizeSpeech,
-  generateMusic,
   type TtsOptions,
   type TtsResult,
 } from "./tts";
@@ -74,13 +73,6 @@ export {
 } from "./poll";
 
 export {
-  generateMinimaxMusic,
-  isMinimaxMusicBaseUrl,
-  type MinimaxMusicOptions,
-  type MinimaxMusicResult,
-} from "./minimax-music";
-
-export {
   synthesizeQwenSpeech,
   isQwenTtsBaseUrl,
   type QwenTtsOptions,
@@ -89,7 +81,6 @@ export {
 
 export {
   synthesizeMinimaxSpeech,
-  generateMinimaxLyrics,
   isMinimaxApiBaseUrl,
   type MinimaxTtsOptions,
   type MinimaxTtsResult,

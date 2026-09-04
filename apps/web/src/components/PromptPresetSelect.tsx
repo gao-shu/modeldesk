@@ -16,7 +16,7 @@ export function PromptPresetSelect({
 }: {
   modality: string;
   prompt: string;
-  /** Called with full preset so callers can apply params (e.g. music lyrics). */
+  /** Called with full preset so callers can apply params overrides. */
   onSelect: (preset: PromptPreset) => void;
   disabled?: boolean;
   /** Inline toolbar style without full-width label stack. */

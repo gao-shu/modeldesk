@@ -17,7 +17,7 @@ export type ModalityFilterProps = {
 };
 
 /**
- * Shared modality chip row — 文本 / 图片 / 视频 / 语音 / 音乐.
+ * Shared modality chip row — 文本 / 图片 / 视频 / 语音.
  * Used by 模型配置、跑一次、生成结果等页面。
  */
 export function ModalityFilter({

@@ -6,7 +6,7 @@
 |----|-----|
 | `api_format` | `video.minimax-h3-relay` |
 | Modality | `video` |
-| Tier | `core`（社区中转；与官方 OpenAI / 海螺分离） |
+| Tier | `relay`（社区中转；模型配置勾选「显示社区中转 / 扩展格式」后可见） |
 | 建议 Base URL | `https://new.xlcsh.top/v1` |
 | Action | `POST /videos` · 轮询 `GET /videos/{id}` · 成片 `GET /videos/{id}/content` |
 | 典型 Model ID | `MiniMax-H3`（别名 `minimax_h3`） |

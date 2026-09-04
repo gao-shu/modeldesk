@@ -30,6 +30,8 @@ ModelDesk 用 **`api_format`** 描述「怎么调厂商接口」。本目录是�
 | 待校验 | 档案已建，尚未对照最新官方文档 |
 | 内部 | Mock / 演示，不面向真实厂商 |
 
+`core` = 模型配置默认列表；`relay` / `extended` = 勾选「显示社区中转 / 扩展格式」后可见。
+
 ### Text
 
 | format | 档案 | Tier | 适配度 | 上次校验 |
@@ -65,20 +67,20 @@ ModelDesk 用 **`api_format`** 描述「怎么调厂商接口」。本目录是�
 | `video.volcengine-seedance` | [video-volcengine-seedance.md](./video-volcengine-seedance.md) | core | 部分对齐 | 2026-08-10 |
 | `video.kling` | [video-kling.md](./video-kling.md) | core | 部分对齐 | 2026-08-11 |
 | `video.minimax-hailuo` | [video-minimax-hailuo.md](./video-minimax-hailuo.md) | core | 部分对齐 | 2026-08-13 |
-| `video.minimax-h3-relay` | [video-minimax-h3-relay.md](./video-minimax-h3-relay.md) | core | 部分对齐 | 2026-09-01 |
-| `video.seedance-relay` | — | core | 部分对齐 | 2026-08-30 |
+| `video.minimax-h3-relay` | [video-minimax-h3-relay.md](./video-minimax-h3-relay.md) | relay | 部分对齐 | 2026-09-01 |
+| `video.seedance-relay` | — | relay | 部分对齐 | 2026-08-30 |
 | `video.vidu` | [video-vidu.md](./video-vidu.md) | core | 部分对齐 | 2026-08-11 |
 | `video.zhipu-cogvideox` | [video-zhipu-cogvideox.md](./video-zhipu-cogvideox.md) | core | 待校验 | 2026-08-10 |
 | `video.volcengine-wan` | [video-volcengine-wan.md](./video-volcengine-wan.md) | core | 待校验 | 2026-08-10 |
 | `video.agnes` | [video-agnes.md](./video-agnes.md) | core | 部分对齐 | 2026-08-10 |
 | `video.agnes-25-flash` | [video-agnes-25-flash.md](./video-agnes-25-flash.md) | core | 部分对齐 | 2026-08-26 |
 | `video.openai-videos` | [video-openai.md](./video-openai.md) | core | 部分对齐 | 2026-08-12 |
-| `video.openai-compatible` | [video-openai.md](./video-openai.md) | core | 部分对齐 | 2026-08-12 |
+| `video.openai-compatible` | [video-openai.md](./video-openai.md) | relay | 部分对齐 | 2026-09-04 |
 | `video.openai-generations` | [video-openai.md](./video-openai.md) | extended | 部分对齐 | 2026-08-12 |
 | `video.grok` | [video-grok.md](./video-grok.md) | core | 部分对齐 | 2026-09-01 |
 | `video.mock` | — | extended | 内部 | — |
 
-### Audio / Music
+### Audio
 
 | format | 档案 | Tier | 适配度 | 上次校验 |
 |--------|------|------|--------|----------|
@@ -86,8 +88,6 @@ ModelDesk 用 **`api_format`** 描述「怎么调厂商接口」。本目录是�
 | `audio.xiaomi-mimo` | [audio-xiaomi-mimo.md](./audio-xiaomi-mimo.md) | core | 部分对齐 | 2026-08-13 |
 | `audio.qwen` | [audio-qwen.md](./audio-qwen.md) | core | 待校验 | 2026-08-10 |
 | `audio.openai-compatible` | [audio-openai-compatible.md](./audio-openai-compatible.md) | core | 待校验 | 2026-08-10 |
-| `music.minimax` | [music-minimax.md](./music-minimax.md) | core | 待校验 | 2026-08-10 |
-| `music.openai-compatible` | [music-openai-compatible.md](./music-openai-compatible.md) | core | 待校验 | 2026-08-10 |
 
 ## 相关代码
 

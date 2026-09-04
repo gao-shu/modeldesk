@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useState } from "react";
 import {
   DEFAULT_PARAM_KEYS_BY_MODALITY,
   apiFormatsForModality,
@@ -240,7 +240,7 @@ export function suggestedConfigName(
           : raw;
     return short ? `万相 Wan · ${short}` : "万相 Wan";
   }
-  if (id.startsWith("speech-") || id.startsWith("music-")) {
+  if (id.startsWith("speech-")) {
     return raw ? `MiniMax · ${raw}` : "MiniMax";
   }
   if (id.startsWith("mimo-") && id.includes("tts")) {
@@ -328,10 +328,20 @@ export function ApiConfigForm({
   variant = "drawer",
 }: ApiConfigFormProps) {
   const modelSuggestionsListId = useId();
+  const activeFormat = getApiFormat(form.apiFormat);
+  const activeTier = activeFormat?.tier ?? "core";
+  // Editing a relay/extended config keeps it selectable even if the toggle is off.
+  const [showCommunityFormats, setShowCommunityFormats] = useState(
+    () => activeTier === "relay" || activeTier === "extended",
+  );
+  const includeRelay =
+    showCommunityFormats || activeTier === "relay";
+  const includeExtended =
+    showCommunityFormats || activeTier === "extended";
   const formatOptions = [
     ...apiFormatsForModality(form.modality, {
-      includeExtended: false,
-      includeRelay: false,
+      includeExtended,
+      includeRelay,
     }),
   ];
   // Keep current format visible even if it is somehow missing from the list.
@@ -342,7 +352,6 @@ export function ApiConfigForm({
     const orphan = getApiFormat(form.apiFormat);
     if (orphan) formatOptions.unshift(orphan);
   }
-  const activeFormat = getApiFormat(form.apiFormat);
   const modelOptions = activeFormat?.modelOptions ?? [];
   const modelOptionLabels = activeFormat?.modelOptionLabels ?? {};
   // 高级：自由填写上游 Model ID（中转常用小写 id）；简单：兼容格式可自定义，其它用下拉
@@ -566,7 +575,11 @@ export function ApiConfigForm({
                 >
                   {formatOptions.map((f) => (
                     <option key={f.id} value={f.id}>
-                      {f.label}
+                      {f.tier === "relay"
+                        ? `社区 · ${f.label}`
+                        : f.tier === "extended"
+                          ? `扩展 · ${f.label}`
+                          : f.label}
                     </option>
                   ))}
                 </select>
@@ -623,6 +636,20 @@ export function ApiConfigForm({
                 )}
               </label>
             </div>
+            <label className="flex cursor-pointer items-start gap-2 text-sm text-zinc-600">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={showCommunityFormats}
+                onChange={(e) => setShowCommunityFormats(e.target.checked)}
+              />
+              <span>
+                显示社区中转 / 扩展格式
+                <span className="mt-0.5 block text-[11px] text-zinc-400">
+                  如拾光 MiniMax-H3、Seedance 中转、OpenAI 兼容 /videos/generations 等
+                </span>
+              </span>
+            </label>
           </>
         ) : (
           <>

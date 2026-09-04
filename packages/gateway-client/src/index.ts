@@ -215,13 +215,9 @@ export class ModelDeskGatewayClient {
     return this.request("POST", "/v1/audio/speech", input);
   }
 
-  musicGenerations(input: MediaGenerateInput) {
-    return this.request("POST", "/v1/music/generations", input);
-  }
-
   modeldeskRun(
     input: MediaGenerateInput & {
-      modality?: "image" | "video" | "audio" | "music";
+      modality?: "image" | "video" | "audio";
     },
   ) {
     return this.request("POST", "/v1/modeldesk/run", input);

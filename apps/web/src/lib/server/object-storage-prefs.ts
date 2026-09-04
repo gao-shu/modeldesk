@@ -34,7 +34,7 @@ export function getObjectStoragePrefs(): ObjectStoragePrefs {
   const enabledRaw = getSetting(KEY_ENABLED);
   const providerRaw = getSetting(KEY_PROVIDER);
   const provider =
-    providerRaw && isCloudStorageProvider(providerRaw) ? providerRaw : "tos";
+    providerRaw && isCloudStorageProvider(providerRaw) ? providerRaw : "s3";
   return {
     enabled: enabledRaw === "1" || enabledRaw === "true",
     provider,

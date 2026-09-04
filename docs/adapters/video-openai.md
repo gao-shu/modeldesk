@@ -7,7 +7,7 @@
 | 项 | 值 |
 |----|-----|
 | Modality | `video` |
-| Tier | `core`（`openai-generations` 为 extended） |
+| Tier | `core`（`openai-videos`）；`openai-compatible` 为 **relay**；`openai-generations` 为 extended |
 | 代码入口 | `api-formats.ts` · `api-base-url.ts` · `video.ts` |
 | 适配度 | 部分对齐 |
 | 上次校验 | 2026-08-12 |

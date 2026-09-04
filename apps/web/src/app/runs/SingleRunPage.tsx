@@ -787,8 +787,7 @@ export function SingleRunPage({ modality }: { modality: Modality }) {
       (selected.modality === "image" ||
         selected.modality === "video" ||
         selected.modality === "text" ||
-        selected.modality === "audio" ||
-        selected.modality === "music")
+        selected.modality === "audio")
         ? buildParamsForApiFormat(formatId, selected.defaults)
         : buildInitialRunParams(selected.modality, selected.defaults);
     setRunParams(next);
@@ -1189,8 +1188,7 @@ export function SingleRunPage({ modality }: { modality: Modality }) {
   const compactLeft =
     modality === "image" ||
     modality === "video" ||
-    modality === "audio" ||
-    modality === "music";
+    modality === "audio";
   /**
    * Keep left form + right output the same height across modalities
    * so image/text/video panels feel consistent.
@@ -1531,8 +1529,7 @@ export function SingleRunPage({ modality }: { modality: Modality }) {
                   Boolean(artifactId) &&
                   (modality === "image" ||
                     modality === "video" ||
-                    modality === "audio" ||
-                    modality === "music");
+                    modality === "audio");
                 if (items.length === 0 && !artifactId) return null;
                 return (
                   <div className="mt-auto flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-zinc-100 bg-zinc-50/70 px-3.5 py-2">

@@ -1,5 +1,5 @@
 /**
- * Base URL 简单 / 高级模式（文本 chat + 图片 / 视频 / 语音 / 音乐）。
+ * Base URL 简单 / 高级模式（文本 chat + 图片 / 视频 / 语音）。
  *
  * 文本（DeepSeek 等）：
  *   简单 = host（https://api.deepseek.com）→ 请求时自动补 /v1/chat/completions
@@ -55,8 +55,7 @@ export function formatSupportsApiBaseUrlMode(apiFormatId: string): boolean {
   return (
     fmt.modality === "image" ||
     fmt.modality === "video" ||
-    fmt.modality === "audio" ||
-    fmt.modality === "music"
+    fmt.modality === "audio"
   );
 }
 
@@ -122,7 +121,6 @@ function apiActionPathForFormat(apiFormatId: string): string | null {
   }
   if (apiFormatId === "audio.minimax") return "/t2a_v2";
   if (apiFormatId === "audio.xiaomi-mimo") return "/chat/completions";
-  if (apiFormatId === "music.minimax") return "/music_generation";
   return null;
 }
 

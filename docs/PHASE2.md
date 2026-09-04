@@ -26,7 +26,7 @@
 ## 1. 产品分层（目标结构）
 
 ```text
-L1 Desk（配测台）     模型 / Key / 五模态实测 / 产物 / 按需适配
+L1 Desk（配测台）     模型 / Key / 多模态实测 / 产物 / 按需适配
         ↓ 同一 dataDir + run-core
 L2 本机出口            CLI · MCP · Gateway（别名 + OpenAPI + Client）
         ↓

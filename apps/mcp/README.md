@@ -22,14 +22,13 @@ Dev without global link: `pnpm mcp` from the repo root.
 
 | Tool | Args | Purpose |
 |------|------|---------|
-| `list_models` | `modality?`: `text` \| `image` \| `video` \| `audio` \| `music` | List non-mock registry models; also returns `dataDir` + encryption status |
+| `list_models` | `modality?`: `text` \| `image` \| `video` \| `audio` | List non-mock registry models; also returns `dataDir` + encryption status |
 | `list_active_runs` | — | In-flight runs started by **this** MCP process |
 | `cancel_run` | `runId` | Abort an in-flight run in this process |
 | `run_text` | `modelId`, `prompt`, `temperature?`, `maxTokens?` | Chat completion |
 | `run_image` | `modelId`, `prompt`, `params?` | Image generation |
 | `run_video` | `modelId`, `prompt`, `params?` | Video generation |
 | `run_audio` | `modelId`, `prompt`, `params?` | Audio / TTS |
-| `run_music` | `modelId`, `prompt`, `params?` | Music generation |
 
 `modelId` is the **ModelDesk registry UUID** from `list_models` (not the upstream vendor model string).
 

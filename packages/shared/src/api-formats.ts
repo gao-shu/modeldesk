@@ -5,7 +5,7 @@
 
 import type { RunParamField } from "./run-params";
 
-export type ApiFormatModality = "text" | "image" | "video" | "audio" | "music";
+export type ApiFormatModality = "text" | "image" | "video" | "audio";
 
 export type ApiFormatId = string;
 
@@ -629,38 +629,6 @@ const AUDIO_XIAOMI_MIMO_FIELDS: readonly RunParamField[] = [
   },
 ];
 
-const MUSIC_COMMON_FIELDS: readonly RunParamField[] = [
-  {
-    key: "is_instrumental",
-    label: "纯伴奏",
-    type: "boolean",
-    defaultValue: "false",
-  },
-  {
-    key: "lyrics_optimizer",
-    label: "自动写词",
-    type: "boolean",
-    defaultValue: "true",
-    hint: "有声歌曲且未填歌词时先调用歌词生成",
-  },
-  {
-    key: "duration_sec",
-    label: "目标时长（秒）",
-    type: "number",
-    defaultValue: "",
-    min: 1,
-    max: 300,
-    step: 1,
-    hint: "部分接口支持；留空则用模型默认",
-  },
-  {
-    key: "lyrics",
-    label: "歌词",
-    type: "textarea",
-    defaultValue: "",
-    hint: "填写后关闭自动写词，严格按歌词生成",
-  },
-];
 
 export const API_FORMATS: readonly ApiFormatDef[] = [
   // ── Text（国内常用置顶 + 御三家 + 兼容）──
@@ -1704,9 +1672,9 @@ export const API_FORMATS: readonly ApiFormatDef[] = [
   {
     id: "video.openai-compatible",
     label: "OpenAI 兼容",
-    hint: "中转 · /videos/generations（若是 /videos 请选「OpenAI」）",
+    hint: "社区中转 · /videos/generations（若是 /videos 请选「OpenAI」）",
     modality: "video",
-    tier: "core",
+    tier: "relay",
     suggestedBaseUrl: "https://api.example.com/v1",
     apiRootPath: "/v1",
     apiActionPath: "/videos/generations",
@@ -1802,9 +1770,9 @@ export const API_FORMATS: readonly ApiFormatDef[] = [
   {
     id: "video.seedance-relay",
     label: "Seedance 中转",
-    hint: "POST /v1/videos multipart · seedance-2.0-mini 等（如 new.xlcsh.top）",
+    hint: "社区中转 · POST /v1/videos multipart · seedance-2.0-mini 等",
     modality: "video",
-    tier: "core",
+    tier: "relay",
     suggestedBaseUrl: "https://new.xlcsh.top/v1",
     apiRootPath: "/v1",
     apiActionPath: "/videos",
@@ -1856,7 +1824,7 @@ export const API_FORMATS: readonly ApiFormatDef[] = [
     label: "拾光 minimax_h3",
     hint: "社区中转 · POST /v1/videos · H3 字段 size/resolution（勿与官方 OpenAI / 海螺混用）",
     modality: "video",
-    tier: "core",
+    tier: "relay",
     suggestedBaseUrl: "https://new.xlcsh.top/v1",
     apiRootPath: "/v1",
     apiActionPath: "/videos",
@@ -1993,32 +1961,6 @@ export const API_FORMATS: readonly ApiFormatDef[] = [
     fields: AUDIO_OPENAI_FIELDS,
   },
 
-  // ── Music（国内主流置顶）──
-  {
-    id: "music.minimax",
-    label: "MiniMax",
-    hint: "音乐生成 · api.minimaxi.com",
-    modality: "music",
-    tier: "core",
-    suggestedBaseUrl: "https://api.minimaxi.com/v1",
-    apiRootPath: "/v1",
-    apiActionPath: "/music_generation",
-    suggestedModelId: "music-3.0-free",
-    modelOptions: ["music-3.0-free", "music-2.6-free"],
-    fields: MUSIC_COMMON_FIELDS,
-  },
-  {
-    id: "music.openai-compatible",
-    label: "OpenAI 兼容",
-    hint: "自定义音乐 endpoint",
-    modality: "music",
-    tier: "core",
-    suggestedBaseUrl: "",
-    apiRootPath: "/v1",
-    suggestedModelId: "",
-    modelOptions: [],
-    fields: MUSIC_COMMON_FIELDS,
-  },
 ];
 
 const BY_ID = new Map(API_FORMATS.map((f) => [f.id, f]));
@@ -2075,9 +2017,6 @@ export function defaultApiFormatId(modality: string): string {
   }
   if (modality === "audio") {
     return list.find((f) => f.id === "audio.minimax")?.id ?? list[0]?.id ?? "";
-  }
-  if (modality === "music") {
-    return list.find((f) => f.id === "music.minimax")?.id ?? list[0]?.id ?? "";
   }
   return list[0]?.id ?? "";
 }
@@ -2284,13 +2223,6 @@ export function resolveApiFormatId(input: {
       return "audio.qwen";
     }
     return defaultApiFormatId("audio");
-  }
-
-  if (input.modality === "music") {
-    if (bits.includes("minimax") || bits.includes("hailuo")) {
-      return "music.minimax";
-    }
-    return defaultApiFormatId("music");
   }
 
   if (input.modality === "text") {
@@ -2519,7 +2451,6 @@ export function modalityUsesApiFormatPicker(modality: string): boolean {
     modality === "image" ||
     modality === "video" ||
     modality === "text" ||
-    modality === "audio" ||
-    modality === "music"
+    modality === "audio"
   );
 }

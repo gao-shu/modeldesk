@@ -144,7 +144,7 @@ export function listRunModels(modality?: string): RunModelSummary[] {
   return listModels(modality).map(toSummary);
 }
 
-/** List models suitable for agent surfaces (text/image/video/audio/music). */
+/** List models suitable for agent surfaces (text/image/video/audio). */
 export function listRunModelsForAgent(
   modality?: RunCoreAgentModality,
 ): RunModelSummary[] {
@@ -468,13 +468,6 @@ export async function runAudio(
   input: Omit<RunSingleModelInput, "expectModality">,
 ): Promise<RunCoreOutcome> {
   return runSingleModel({ ...input, expectModality: "audio" });
-}
-
-/** Convenience: run a music model. */
-export async function runMusic(
-  input: Omit<RunSingleModelInput, "expectModality">,
-): Promise<RunCoreOutcome> {
-  return runSingleModel({ ...input, expectModality: "music" });
 }
 
 export type RunCoreArtifactPublic = {

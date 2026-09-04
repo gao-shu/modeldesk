@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/) when tagg
 
 ## [Unreleased]
 
+### Removed
+
+- Music modality（`music` 实测 / Gateway `/v1/music/generations` / MCP `run_music` / CLI `run music`）；旧 `type=music` 产物仍可在生成结果中回放
+
+### Changed
+
+- 模型配置默认隐藏社区中转视频 format（勾选后可见）；对象存储 UI 统一为 S3 兼容（七牛等走同一套），字段标签/占位中英对照
+
 ## [0.2.3] - 2026-09-02
 
 ### Added

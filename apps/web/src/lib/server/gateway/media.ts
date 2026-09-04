@@ -7,7 +7,6 @@ import {
   runAudio,
   runCoreResultToPublic,
   runImage,
-  runMusic,
   runVideo,
   submitVideo,
   type RunCoreAgentModality,
@@ -244,8 +243,6 @@ async function runModality(
       return runVideo(base);
     case "audio":
       return runAudio(base);
-    case "music":
-      return runMusic(base);
     default:
       return {
         kind: "prepare_error",
@@ -682,8 +679,7 @@ export async function modeldeskRunResponse(
   const expect =
     modalityHint === "image" ||
     modalityHint === "video" ||
-    modalityHint === "audio" ||
-    modalityHint === "music"
+    modalityHint === "audio"
       ? modalityHint
       : null;
 

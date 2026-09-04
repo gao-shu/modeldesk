@@ -114,21 +114,3 @@ export async function synthesizeSpeech(
     latencyMs: Date.now() - started,
   };
 }
-
-/** Music: same as TTS for MVP when provider is audio/music HTTP; mock for demos. */
-export async function generateMusic(
-  options: TtsOptions & { durationSec?: number },
-): Promise<TtsResult> {
-  if (options.baseUrl.startsWith("mock://")) {
-    const started = Date.now();
-    await new Promise((r) => setTimeout(r, 200));
-    return {
-      bytes: makeSilentWav(options.durationSec ?? 1),
-      mime: "audio/wav",
-      extension: "wav",
-      latencyMs: Date.now() - started,
-    };
-  }
-  // Fallback: treat as TTS-compatible speech endpoint with longer clip.
-  return synthesizeSpeech(options);
-}

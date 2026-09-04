@@ -76,7 +76,6 @@ setTimeout(() => {
     "run_image",
     "run_video",
     "run_audio",
-    "run_music",
   ];
   const ok = required.every((n) => names.includes(n));
 

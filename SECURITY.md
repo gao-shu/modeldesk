@@ -34,7 +34,7 @@ ModelDesk 是**本地、单用户**工作台：
 - 把 MCP 当作界面同等看待：**本地进程可达 ≈ 能花掉已配置的 API Key**  
 - 日志与工具返回中**不得**回显完整 API Key  
 
-MVP 工具面：`list_models` / `run_text|image|video|audio|music` / `cancel_run`。说明见 [docs/external-access.md](./docs/external-access.md)、[apps/mcp/README.md](./apps/mcp/README.md)。
+MVP 工具面：`list_models` / `run_text|image|video|audio` / `cancel_run`。说明见 [docs/external-access.md](./docs/external-access.md)、[apps/mcp/README.md](./apps/mcp/README.md)。
 
 请确保 MCP 进程与 Web 使用**相同的** `MODELDESK_DATA_DIR`（加密密钥优先用 `{dataDir}/.encryption-secret`），否则 Agent 看不到你在界面里配好的模型与 Key。
 

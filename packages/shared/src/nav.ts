@@ -25,7 +25,6 @@ export const NAV_SECTIONS: readonly NavSection[] = [
       { href: "/runs/image", label: "图片", description: "" },
       { href: "/runs/video", label: "视频", description: "" },
       { href: "/runs/audio", label: "语音", description: "" },
-      { href: "/runs/music", label: "音乐", description: "" },
     ],
   },
   {

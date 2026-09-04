@@ -1736,8 +1736,7 @@ export function RunParamsFields({
     (modality === "image" ||
       modality === "video" ||
       modality === "text" ||
-      modality === "audio" ||
-      modality === "music");
+      modality === "audio");
 
   const allFields = useFormat
     ? formatFields

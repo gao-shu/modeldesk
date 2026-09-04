@@ -1,7 +1,6 @@
 /** Default prompts / switchable short cases for single runs. */
 
 import { imageGenBenchmarkPresets } from "@/lib/benchmarks/image-gen";
-import { musicGenBenchmarkPresets } from "@/lib/benchmarks/music-gen";
 import { videoGenBenchmarkPresets } from "@/lib/benchmarks/video-gen";
 
 export type PromptPreset = {
@@ -10,7 +9,7 @@ export type PromptPreset = {
   /** What this case is good for testing */
   focus?: string;
   text: string;
-  /** Optional run-param overrides when selecting this preset (music lyrics etc.). */
+  /** Optional run-param overrides when selecting this preset. */
   params?: Record<string, string>;
 };
 
@@ -90,20 +89,6 @@ export const PROMPT_PRESETS_BY_MODALITY: Record<string, PromptPreset[]> = {
       text: `重庆的李老师今天去了长安银行，在重阳节之前重新办理了一张银行卡。
 他对同事说：“这个项目还行，不过还有很多地方需要调整。”
 明天上午十点，我们再一起 review 最新的 API 文档和 README。`,
-    },
-  ],
-  music: [
-    ...musicGenBenchmarkPresets(),
-    {
-      id: "music-pop",
-      label: "快速冒烟 · 清晨流行纯音乐",
-      focus: "连通性 / 基础编曲",
-      text: "轻快流行，阳光明媚的清晨纯音乐，节奏明朗，适合短视频片头。",
-      params: {
-        is_instrumental: "true",
-        lyrics_optimizer: "false",
-        lyrics: "",
-      },
     },
   ],
 };

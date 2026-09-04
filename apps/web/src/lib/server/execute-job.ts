@@ -1,9 +1,6 @@
 import {
   generateImage,
-  generateMinimaxMusic,
-  generateMusic,
   isMinimaxApiBaseUrl,
-  isMinimaxMusicBaseUrl,
   isQwenTtsBaseUrl,
   isXiaomiMimoTtsBaseUrl,
   resolveTokenCounts,
@@ -653,14 +650,11 @@ async function runImageJob(input: JobExecParams): Promise<JobExecResult> {
   }
 }
 
-async function runAudioJob(
-  input: JobExecParams,
-  kind: "audio" | "music",
-): Promise<JobExecResult> {
+async function runAudioJob(input: JobExecParams): Promise<JobExecResult> {
   const started = Date.now();
   const publicModel = toPublicModel(input.row);
   const apiFormat = resolveApiFormatId({
-    modality: kind,
+    modality: "audio",
     defaults: publicModel.defaults,
     provider: input.row.provider,
     baseUrl: input.row.base_url,
@@ -694,20 +688,6 @@ async function runAudioJob(
     instructionRaw === "__custom__"
       ? instructionCustom
       : instructionRaw;
-  const durationSec =
-    typeof params.duration_sec === "number"
-      ? params.duration_sec
-      : undefined;
-  const isInstrumental = params.is_instrumental === true;
-  const lyricsOptimizer =
-    params.lyrics_optimizer === true ||
-    (params.lyrics_optimizer !== false &&
-      params.lyrics == null &&
-      !isInstrumental);
-  const lyrics =
-    typeof params.lyrics === "string" && params.lyrics.trim()
-      ? params.lyrics.trim()
-      : undefined;
   const referenceAudio =
     typeof params.reference_audio === "string" && params.reference_audio.trim()
       ? params.reference_audio.trim()
@@ -716,52 +696,29 @@ async function runAudioJob(
 
   input.onEvent?.(
     "status",
-    slotPayload(input.slot, { status: "running", modality: kind }),
+    slotPayload(input.slot, { status: "running", modality: "audio" }),
   );
 
   try {
     const baseUrl = resolveApiBaseUrl(
-      input.row.base_url ?? "mock://music",
+      input.row.base_url ?? "mock://tts",
       apiFormat,
     );
     const result =
-      kind === "music"
-        ? isMinimaxMusicBaseUrl(baseUrl)
-          ? await generateMinimaxMusic({
-              baseUrl,
-              apiKey: input.apiKey || "mock",
-              model: input.row.model_id,
-              prompt: input.prompt,
-              lyrics,
-              isInstrumental,
-              lyricsOptimizer,
-              timeoutMs: 180_000,
-              signal: combineSignal(input.signal, 180_000),
-            })
-          : await generateMusic({
-              baseUrl,
-              apiKey: input.apiKey || "mock",
-              model: input.row.model_id,
-              input: input.prompt,
-              voice,
-              speed,
-              durationSec,
-              signal: combineSignal(input.signal, 180_000),
-            })
-        : apiFormat === "audio.xiaomi-mimo" || isXiaomiMimoTtsBaseUrl(baseUrl)
-          ? await synthesizeXiaomiMimoSpeech({
-              baseUrl: baseUrl || "https://api.xiaomimimo.com/v1",
-              apiKey: input.apiKey || "mock",
-              model: input.row.model_id,
-              text: input.prompt,
-              instruction,
-              voice,
-              referenceAudio,
-              optimizeTextPreview,
-              timeoutMs: 120_000,
-              signal: combineSignal(input.signal, 120_000),
-            })
-          : isQwenTtsBaseUrl(baseUrl)
+      apiFormat === "audio.xiaomi-mimo" || isXiaomiMimoTtsBaseUrl(baseUrl)
+        ? await synthesizeXiaomiMimoSpeech({
+            baseUrl: baseUrl || "https://api.xiaomimimo.com/v1",
+            apiKey: input.apiKey || "mock",
+            model: input.row.model_id,
+            text: input.prompt,
+            instruction,
+            voice,
+            referenceAudio,
+            optimizeTextPreview,
+            timeoutMs: 120_000,
+            signal: combineSignal(input.signal, 120_000),
+          })
+        : isQwenTtsBaseUrl(baseUrl)
           ? await synthesizeQwenSpeech({
               baseUrl: baseUrl || "https://dashscope.aliyuncs.com",
               apiKey: input.apiKey || "mock",
@@ -796,7 +753,7 @@ async function runAudioJob(
               });
 
     const artifact = saveArtifact({
-      type: kind === "music" ? "music" : "audio",
+      type: "audio",
       extension: result.extension,
       mime: result.mime,
       bytes: result.bytes,
@@ -805,7 +762,7 @@ async function runAudioJob(
         source: "run-job",
         runId: input.runId,
         modelId: input.row.id,
-        modality: kind,
+        modality: "audio",
         fileSize: result.bytes.length,
       },
     });
@@ -1021,8 +978,7 @@ export async function executeModelJob(
   const modality = input.row.modality;
   if (modality === "text") return runTextJob(input);
   if (modality === "image") return runImageJob(input);
-  if (modality === "audio") return runAudioJob(input, "audio");
-  if (modality === "music") return runAudioJob(input, "music");
+  if (modality === "audio") return runAudioJob(input);
   if (modality === "video") return runVideoJob(input);
   const message = `Unsupported modality: ${modality}`;
   finishJobFailure({

@@ -6,7 +6,6 @@ export const RUN_CORE_AGENT_MODALITIES = [
   "image",
   "video",
   "audio",
-  "music",
 ] as const;
 export type RunCoreAgentModality = (typeof RUN_CORE_AGENT_MODALITIES)[number];
 

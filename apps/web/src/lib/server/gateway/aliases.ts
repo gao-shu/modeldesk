@@ -9,7 +9,6 @@ export const STABLE_ALIASES = {
   "image-default": "image",
   "video-default": "video",
   "audio-default": "audio",
-  "music-default": "music",
 } as const satisfies Record<string, RunCoreAgentModality>;
 
 export type StableAlias = keyof typeof STABLE_ALIASES;
@@ -21,7 +20,6 @@ const ENV_KEYS: Record<StableAlias, string> = {
   "image-default": "MODELDESK_ALIAS_IMAGE_DEFAULT",
   "video-default": "MODELDESK_ALIAS_VIDEO_DEFAULT",
   "audio-default": "MODELDESK_ALIAS_AUDIO_DEFAULT",
-  "music-default": "MODELDESK_ALIAS_MUSIC_DEFAULT",
 };
 
 export function isStableAlias(value: string): value is StableAlias {

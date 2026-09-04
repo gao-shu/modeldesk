@@ -70,8 +70,7 @@ function modelsResponse(url: URL): Response {
     modalityRaw === "text" ||
     modalityRaw === "image" ||
     modalityRaw === "video" ||
-    modalityRaw === "audio" ||
-    modalityRaw === "music"
+    modalityRaw === "audio"
       ? (modalityRaw as RunCoreAgentModality)
       : undefined;
 
@@ -277,9 +276,6 @@ export async function handleGatewayRequest(req: Request): Promise<Response> {
   }
   if (req.method === "POST" && pathname === "/v1/audio/speech") {
     return mediaGenerateResponse(req, { modality: "audio", origin });
-  }
-  if (req.method === "POST" && pathname === "/v1/music/generations") {
-    return mediaGenerateResponse(req, { modality: "music", origin });
   }
   if (req.method === "POST" && pathname === "/v1/modeldesk/run") {
     return modeldeskRunResponse(req, { origin });

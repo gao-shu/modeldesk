@@ -7,7 +7,7 @@
 | 项 | 值 |
 |----|-----|
 | `api_format` | `{id}` |
-| Modality | `text` / `image` / `video` / `audio` / `music` |
+| Modality | `text` / `image` / `video` / `audio` |
 | Tier | `core` / `extended` / `relay` |
 | 建议 Base URL | |
 | 典型 Model ID | |
