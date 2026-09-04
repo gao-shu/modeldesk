@@ -120,7 +120,7 @@ POST /v1/images/generations | /v1/images/edits | /v1/videos/generations | /v1/au
 GET  /v1/artifacts/:id
 ```
 
-**视频（仅异步）：** `POST /v1/videos` 或别名 `POST /v1/videos/generations` 立刻返回 `{ id, status: "queued" }`；用 `GET /v1/videos/{id}` 轮询至 `completed` / `failed`。成片 URL 在 `url` / `data[].url`（优先上游 CDN）。需要经 ModelDesk 拉字节时用 `GET /v1/videos/{id}/content`（或 `GET /v1/files/{artifactId}`）。`DELETE /v1/videos/{id}` 可取消进行中任务。**已取消同步阻塞等待**，调用方必须轮询。
+**视频（仅异步）：** `POST /v1/videos` 或别名 `POST /v1/videos/generations` 立刻返回 `{ id, status: "queued" }`；用 `GET /v1/videos/{id}` 轮询至 `completed` / `failed`。完成后 `url` / `data[].url` 为本机 `GET /v1/videos/{id}/content`（落盘成片，调用方无需上游 API Key；请求 Host 决定绝对地址，如 `http://modeldesk-web:3020/v1/videos/{id}/content`）。上游 CDN 仅在 `remoteUrl`（下载需厂商 Key）。也可用 `GET /v1/files/{artifactId}`。`DELETE /v1/videos/{id}` 可取消进行中任务。**已取消同步阻塞等待**，调用方必须轮询。
 
 图片 / 视频成功时，`data[].url`（及 `modeldesk.artifacts[].url`）**优先返回上游 CDN 地址**；仅当上游未给出公网 URL（例如只回了 base64）时，才回落到本机 `GET /v1/artifacts/:id`。本机仍会落盘一份，供界面与历史使用。
 

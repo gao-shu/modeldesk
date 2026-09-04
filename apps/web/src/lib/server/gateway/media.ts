@@ -36,6 +36,11 @@ function artifactUrl(origin: string, artifactId: string): string {
   return `${origin.replace(/\/+$/, "")}/v1/artifacts/${artifactId}`;
 }
 
+/** Local OpenAI Videos-shaped binary URL (no upstream API key required). */
+function videoContentUrl(origin: string, taskId: string): string {
+  return `${origin.replace(/\/+$/, "")}/v1/videos/${encodeURIComponent(taskId)}/content`;
+}
+
 /** Prefer upstream CDN URL for external callers; fall back to local /v1/artifacts. */
 function mediaPublicUrl(
   origin: string,
@@ -408,6 +413,11 @@ function videoTaskPayload(
     response,
   });
 
+  // Async video: public `url` is always local /v1/videos/{jobId}/content when we
+  // have a saved artifact (admin can download without upstream API key). Upstream
+  // CDN stays in `remoteUrl` only.
+  const contentUrl = videoContentUrl(origin, job.id);
+
   const arts: Array<{
     id: string;
     mime: string | null;
@@ -421,7 +431,7 @@ function videoTaskPayload(
       mime: a.mime,
       path: a.uri,
       remoteUrl,
-      url: mediaPublicUrl(origin, { id: a.id, remoteUrl }),
+      url: contentUrl,
     };
   });
 
@@ -440,7 +450,7 @@ function videoTaskPayload(
         mime: null,
         path: null,
         remoteUrl: remote,
-        url: mediaPublicUrl(origin, { id: artifactId, remoteUrl: remote }),
+        url: contentUrl,
       });
     } else if (remote) {
       arts.push({
@@ -448,12 +458,17 @@ function videoTaskPayload(
         mime: null,
         path: null,
         remoteUrl: remote,
+        // No local bytes yet - only upstream URL is downloadable.
         url: remote,
       });
     }
   }
 
-  const primaryUrl = arts[0]?.url ?? null;
+  const hasLocalArtifact = arts.some((a) => Boolean(a.id?.trim()));
+  const primaryUrl =
+    status === "completed" && hasLocalArtifact
+      ? contentUrl
+      : (arts[0]?.url ?? null);
   const errorMessage =
     status === "failed"
       ? job.error ||

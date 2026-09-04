@@ -30,3 +30,8 @@ data/_backup*
 apps/radar-api/data
 **/*.tsbuildinfo
 .turbo
+release
+scripts/docker-pack-context
+scripts/_*.py
+*.tar
+*.tar.gz
