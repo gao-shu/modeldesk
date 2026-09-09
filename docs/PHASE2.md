@@ -56,7 +56,7 @@ CLI / MCP 走进程，不另开业务端口。
 
 | ID | 任务 | 验收 | 状态 |
 |----|------|------|------|
-| A1 | 全模态 HTTP：文 / 图 / 音 / 视 / 乐 | 各模态至少一次成功生成；产物可 `GET /v1/artifacts/:id` | done |
+| A1 | 全模态 HTTP：文 / 图 / 音 / 视 | 各模态至少一次成功生成；产物可 `GET /v1/artifacts/:id`（音乐模态已移除） | done |
 | A2 | 稳定别名 `llm-default` 等 | 文件 / env / `PUT /v1/aliases`；`GET /v1/models` 可见 | done |
 | A3 | 冻结 OpenAPI + 官方 Client | `apps/gateway/openapi.yaml` + `@modeldesk/gateway-client` | done |
 | A4 | 可选本机调用方 token | `MODELDESK_GATEWAY_TOKEN`（可多值）/ `TOKENS_FILE`；非多租户 | done |

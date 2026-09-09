@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: ModelDesk Gateway
-  version: 0.2.0
+  version: 0.2.3
   description: |
     Local loopback multimodal facade over ModelDesk run-core.
     Default: same process as Web/Desktop on :3300.

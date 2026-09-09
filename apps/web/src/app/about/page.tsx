@@ -169,7 +169,7 @@ function PositionPanel() {
       <ul className="mt-2 list-disc space-y-1.5 pl-5">
         <li>
           <span className="text-zinc-800">现在</span>
-          ：本机 / 单用户 desk——登记协议、地址与 Key，实测五模态。
+          ：本机 / 单用户 desk——登记协议、地址与 Key，实测四模态（文 / 图 / 音 / 视）。
         </li>
         <li>
           <span className="text-zinc-800">目标</span>
@@ -216,7 +216,7 @@ function PositionPanel() {
       <H className="mt-5">已实现（摘要）</H>
       <ul className="mt-2 list-disc space-y-1.5 pl-5">
         <li>模型台账、Key 加密、连通性测试、多厂商 / 中转适配</li>
-        <li>五模态实测与本机产物；同一 run-core 供 Web / CLI / MCP / Gateway</li>
+        <li>四模态实测与本机产物；同一 run-core 供 Web / CLI / MCP / Gateway</li>
         <li>可选桌面安装包；细节见「技术 / 接入模型 / 对外调用」</li>
       </ul>
     </Panel>

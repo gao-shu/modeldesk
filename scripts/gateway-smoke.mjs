@@ -40,8 +40,16 @@ try {
   );
   const openapi = await fetch("http://127.0.0.1:3310/openapi.yaml");
   const openapiText = await openapi.text();
-  const hasAliases =
-    Array.isArray(aliases?.aliases) && aliases.aliases.length >= 5;
+  const requiredAliases = [
+    "llm-default",
+    "image-default",
+    "video-default",
+    "audio-default",
+  ];
+  const aliasIds = Array.isArray(aliases?.aliases)
+    ? aliases.aliases.map((a) => a?.alias).filter(Boolean)
+    : [];
+  const hasAliases = requiredAliases.every((id) => aliasIds.includes(id));
   const registryRow = (models?.data ?? []).find(
     (m) => m && m.owned_by !== "modeldesk-alias" && typeof m.modality === "string",
   );
