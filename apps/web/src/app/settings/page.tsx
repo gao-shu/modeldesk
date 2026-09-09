@@ -224,6 +224,20 @@ export default function SettingsPage() {
   const [mcpCopied, setMcpCopied] = useState(false);
   const [codexCopied, setCodexCopied] = useState(false);
   const [gatewayCopied, setGatewayCopied] = useState<string | null>(null);
+  const [aliasRows, setAliasRows] = useState<
+    Array<{
+      alias: string;
+      modality: string;
+      modelId: string | null;
+    }>
+  >([]);
+  const [aliasModels, setAliasModels] = useState<
+    Array<{ id: string; name: string; modality: string; hasApiKey?: boolean }>
+  >([]);
+  const [aliasDraft, setAliasDraft] = useState<Record<string, string>>({});
+  const [aliasBusy, setAliasBusy] = useState(false);
+  const [aliasMessage, setAliasMessage] = useState<string | null>(null);
+  const [aliasError, setAliasError] = useState<string | null>(null);
   const [clearRunsToo, setClearRunsToo] = useState(false);
   const [cleanupBusy, setCleanupBusy] = useState(false);
   const [cleanupMessage, setCleanupMessage] = useState<string | null>(null);
@@ -277,6 +291,96 @@ export default function SettingsPage() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  const refreshAliases = useCallback(async () => {
+    setAliasError(null);
+    try {
+      const [aliasesRes, modelsRes] = await Promise.all([
+        fetch("/v1/aliases"),
+        fetch("/v1/models"),
+      ]);
+      const aliasesData = (await aliasesRes.json()) as {
+        aliases?: Array<{
+          alias: string;
+          modality: string;
+          modelId: string | null;
+        }>;
+        error?: { message?: string };
+      };
+      const modelsData = (await modelsRes.json()) as {
+        data?: Array<{
+          id: string;
+          name?: string;
+          modality?: string;
+          hasApiKey?: boolean;
+          owned_by?: string;
+        }>;
+        error?: { message?: string };
+      };
+      if (!aliasesRes.ok) {
+        setAliasError(
+          aliasesData.error?.message ?? `加载别名失败 (${aliasesRes.status})`,
+        );
+        return;
+      }
+      const rows = Array.isArray(aliasesData.aliases) ? aliasesData.aliases : [];
+      setAliasRows(rows);
+      const draft: Record<string, string> = {};
+      for (const row of rows) {
+        draft[row.alias] = row.modelId ?? "";
+      }
+      setAliasDraft(draft);
+      const models = (modelsData.data ?? []).filter(
+        (m) => m && m.owned_by !== "modeldesk-alias" && typeof m.modality === "string",
+      );
+      setAliasModels(
+        models.map((m) => ({
+          id: m.id,
+          name: m.name || m.id,
+          modality: m.modality!,
+          hasApiKey: m.hasApiKey,
+        })),
+      );
+    } catch (e) {
+      setAliasError(e instanceof Error ? e.message : String(e));
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshAliases();
+  }, [refreshAliases]);
+
+  async function saveAliases() {
+    setAliasBusy(true);
+    setAliasError(null);
+    setAliasMessage(null);
+    try {
+      const body: Record<string, string | null> = {};
+      for (const row of aliasRows) {
+        const v = (aliasDraft[row.alias] ?? "").trim();
+        body[row.alias] = v || null;
+      }
+      const res = await fetch("/v1/aliases", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = (await res.json()) as {
+        aliases?: unknown;
+        error?: { message?: string };
+      };
+      if (!res.ok) {
+        setAliasError(data.error?.message ?? `保存失败 (${res.status})`);
+        return;
+      }
+      setAliasMessage("别名已保存");
+      await refreshAliases();
+    } catch (e) {
+      setAliasError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAliasBusy(false);
+    }
+  }
 
   const currentConfig = pickStorageConfig(configs);
 
@@ -1027,6 +1131,81 @@ await md.imagesGenerations({
               <span className="font-mono text-xs">@modeldesk/gateway-client</span>
               。
             </p>
+
+            <div className="mt-4 rounded-md border border-zinc-100 bg-zinc-50/80 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-sm font-medium text-zinc-800">稳定别名</div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={aliasBusy}
+                    onClick={() => void refreshAliases()}
+                    className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-800 hover:bg-zinc-50 disabled:opacity-50"
+                  >
+                    刷新
+                  </button>
+                  <button
+                    type="button"
+                    disabled={aliasBusy || aliasRows.length === 0}
+                    onClick={() => void saveAliases()}
+                    className="rounded-md border border-zinc-900 bg-zinc-900 px-3 py-1.5 text-sm text-white hover:bg-zinc-800 disabled:opacity-50"
+                  >
+                    {aliasBusy ? "保存中…" : "保存别名"}
+                  </button>
+                </div>
+              </div>
+              <p className="mt-1 text-xs text-zinc-500">
+                绑定模型配置里的 registry id；清空选项即解除绑定。也可改{" "}
+                <span className="font-mono">data/gateway-aliases.json</span>。
+              </p>
+              <div className="mt-3 grid gap-2">
+                {aliasRows.length === 0 ? (
+                  <p className="text-sm text-zinc-500">加载中或 Gateway 不可用…</p>
+                ) : (
+                  aliasRows.map((row) => {
+                    const options = aliasModels.filter(
+                      (m) => m.modality === row.modality,
+                    );
+                    return (
+                      <label
+                        key={row.alias}
+                        className="grid gap-1 text-sm sm:grid-cols-[9rem_1fr] sm:items-center"
+                      >
+                        <span className="font-mono text-xs text-zinc-700">
+                          {row.alias}
+                          <span className="ml-1 text-zinc-400">({row.modality})</span>
+                        </span>
+                        <select
+                          className="md-control"
+                          value={aliasDraft[row.alias] ?? ""}
+                          onChange={(e) =>
+                            setAliasDraft((prev) => ({
+                              ...prev,
+                              [row.alias]: e.target.value,
+                            }))
+                          }
+                        >
+                          <option value="">（未绑定）</option>
+                          {options.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.name}
+                              {m.hasApiKey === false ? " · 无 Key" : ""}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+              {aliasError ? (
+                <p className="mt-2 text-sm text-red-600">{aliasError}</p>
+              ) : null}
+              {aliasMessage ? (
+                <p className="mt-2 text-sm text-emerald-700">{aliasMessage}</p>
+              ) : null}
+            </div>
+
             <div className="mt-3 flex flex-wrap items-center gap-2">
               {(
                 [

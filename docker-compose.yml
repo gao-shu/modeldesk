@@ -3,7 +3,8 @@
 #   cp .env.docker.example .env.docker   # edit ENCRYPTION_SECRET — never commit .env.docker
 #   docker compose --env-file .env.docker up --build -d
 # Open http://127.0.0.1:${WEB_HOST_PORT:-3020}
-# Container binds 0.0.0.0; do NOT publish host ports to the public internet.
+# Container listens on 0.0.0.0 inside the network namespace; host publish is
+# loopback-only by default. Do NOT change to 0.0.0.0:${PORT} for public internet.
 
 services:
   web:
@@ -32,7 +33,7 @@ services:
     volumes:
       - ./data:/data
     ports:
-      - "${WEB_HOST_PORT:-3020}:3020"
+      - "127.0.0.1:${WEB_HOST_PORT:-3020}:3020"
     healthcheck:
       test:
         [

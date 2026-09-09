@@ -11,9 +11,9 @@ concurrency:
 
 jobs:
   check:
-    name: lint · oss
+    name: typecheck · unit · oss · gateway-smoke
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
@@ -33,5 +33,17 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test:unit
+
       - name: OSS hygiene
         run: node scripts/check-oss.mjs
+
+      - name: Gateway smoke
+        run: pnpm gateway:smoke
+
+      - name: Gateway E2E
+        run: pnpm e2e

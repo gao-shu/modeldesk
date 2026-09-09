@@ -9,31 +9,27 @@ import { z } from "zod";
 import {
   abortRun,
   clearRunAbort,
+  closeDb,
+  ensureDataDirs,
+  getDataDir,
+  getEncryptionSecretStatus,
   hasRunAbort,
-  registerRunAbort,
-} from "@/lib/server/run-abort";
-import { getEncryptionSecretStatus } from "@/lib/server/encryption-secret";
-import {
   listRunModelsForAgent,
+  refreshAgentDataDir,
+  registerRunAbort,
+  resolveAgentDataDir,
   runAudio,
   runCoreResultToPublic,
   runImage,
   runText,
   runVideo,
+  type AgentDataDirSource,
   type RunCoreAgentModality,
   type RunCoreOutcome,
   type RunPreparedInfo,
   type RunSingleModelInput,
-} from "@/lib/server/run-core";
-import {
-  ensureDataDirs,
-  getDataDir,
-  refreshAgentDataDir,
-  resolveAgentDataDir,
-  type AgentDataDirSource,
-} from "@/lib/server/paths";
-import { resolveModelRef } from "@/lib/server/gateway/resolve-model";
-import { closeDb } from "@/lib/server/db";
+} from "@modeldesk/run-core";
+import { resolveModelRef } from "@modeldesk/run-core/gateway";
 
 function log(...args: unknown[]) {
   console.error("[modeldesk-mcp]", ...args);
@@ -311,7 +307,7 @@ function createServer(): McpServer {
         .describe("Registry UUID or unique config name from list_models"),
       prompt: z.string().min(1).describe("Image prompt"),
       params: z
-        .record(z.unknown())
+        .record(z.string(), z.unknown())
         .optional()
         .describe(
           "Optional run params (size, ratio, quality, reference_images, …)",
@@ -348,7 +344,7 @@ function createServer(): McpServer {
         .describe("Registry UUID or unique config name from list_models"),
       prompt: z.string().min(1).describe("Video prompt"),
       params: z
-        .record(z.unknown())
+        .record(z.string(), z.unknown())
         .optional()
         .describe("Optional run params mirroring the video UI"),
     },
@@ -383,7 +379,7 @@ function createServer(): McpServer {
         .describe("Registry UUID or unique config name from list_models"),
       prompt: z.string().min(1).describe("Audio / TTS prompt or script"),
       params: z
-        .record(z.unknown())
+        .record(z.string(), z.unknown())
         .optional()
         .describe("Optional run params mirroring the audio UI"),
     },

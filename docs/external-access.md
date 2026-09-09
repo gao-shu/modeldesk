@@ -8,7 +8,22 @@ ModelDesk is a **local** multimodal desk. Configure keys in Web / Desktop once; 
 | Cursor / Claude / MCP clients | **MCP** | `modeldesk-mcp` |
 | OpenAI-compatible HTTP / 本机业务 | **Gateway API** | 默认 Web `http://127.0.0.1:3300/v1`；可选无头 `modeldesk-gateway` → `:3310` |
 
-One shared kernel: [`apps/web/src/lib/server/run-core.ts`](../apps/web/src/lib/server/run-core.ts). Do not add parallel run logic in the shells.
+### 何时用哪个入口（能力对照）
+
+| 能力 | CLI | MCP | Gateway (`/v1`) |
+|------|:---:|:---:|:---------------:|
+| 列模型 | ✅ `list` | ✅ `list_models` | ✅ `GET /v1/models` |
+| 文 / 图 / 音 / 视 生成 | ✅ `run …` | ✅ `run_*` | ✅ chat / images / audio / videos |
+| 稳定别名 | ❌（写 registry id） | ❌ | ✅ `*-default` + `PUT /v1/aliases` |
+| OpenAI SDK / 改 base-url | ❌ | ❌ | ✅ |
+| Gallery / 对比 / 设置 UI | ❌ | ❌ | ❌（用 Web） |
+| 鉴权 | 本机进程 | stdio 本机宿主 | 无 token：仅 loopback Host；有 token：Bearer；`REQUIRE_TOKEN` / `ALLOW_OPEN` 见下 |
+| 默认端口 | 无 | 无 | `:3300`（或无头 `:3310`） |
+| 本机护栏 | — | — | 可选并发 / RPM；JSON 访问日志（不含 Key） |
+
+配置自检：`pnpm doctor`（dataDir、加密密钥来源、别名绑定；不打印 Secret）。
+
+One shared kernel: [`packages/run-core`](../packages/run-core) (`@modeldesk/run-core`). Do not add parallel run logic in the shells.
 
 ## Desktop install (recommended)
 
@@ -125,7 +140,13 @@ GET  /v1/artifacts/:id
 Stable aliases：`PUT /v1/aliases` 或 `MODELDESK_ALIAS_*_DEFAULT`。  
 Client：`@modeldesk/gateway-client`（默认 `:3300`）。契约：`apps/web/public/openapi.yaml`。
 
-可选 `MODELDESK_GATEWAY_TOKEN`（comma-separated）或 `MODELDESK_GATEWAY_TOKENS_FILE`。
+可选鉴权 / 护栏（详见 [SECURITY.md](../SECURITY.md)、[apps/gateway/README.md](../apps/gateway/README.md)）：
+
+- `MODELDESK_GATEWAY_TOKEN`（comma-separated）或 `MODELDESK_GATEWAY_TOKENS_FILE`
+- 无 token 时仅 loopback Host 可调；非 loopback 需 token，或显式 `MODELDESK_GATEWAY_ALLOW_OPEN=1`
+- `MODELDESK_GATEWAY_REQUIRE_TOKEN=1`：即使 loopback 也必须带 token
+- `MODELDESK_GATEWAY_MAX_CONCURRENT`（默认 16）/ `MODELDESK_GATEWAY_RPM`（默认 180）；`0` 关闭
+- 访问日志：stdout JSON（`type=gateway_access`，不含 Key）
 
 业务对接：[gateway-business.md](./gateway-business.md)。  
 验收：`pnpm gateway:smoke`（无头）· `pnpm gateway:accept`（优先打已运行的 `:3300`）。

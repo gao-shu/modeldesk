@@ -7,12 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/) when tagg
 
 ## [Unreleased]
 
+### Added
+
+- `@modeldesk/run-core`：CLI / MCP / Gateway / Web 共用内核；Web 仅薄 re-export
+- Gateway 本机护栏：loopback 默认开放、`timingSafeEqual` token、`REQUIRE_TOKEN` / `ALLOW_OPEN`、并发与 RPM、JSON 访问日志
+- `pnpm doctor` 配置自检；设置页可绑定 Gateway 稳定别名
+- CI：`typecheck` · `test:unit` · `check:oss` · `gateway:smoke` · `pnpm e2e`
+- `pnpm e2e` / `pnpm e2e:live`：Gateway 端到端（鉴权/限流/别名；live 含真实上游）
+- 图片适配辅助函数抽离 + 单测（`image-format-helpers`）
+
 ### Removed
 
 - Music modality（`music` 实测 / Gateway `/v1/music/generations` / MCP `run_music` / CLI `run music`）；旧 `type=music` 产物仍可在生成结果中回放
 
 ### Changed
 
+- Docker compose / `next start` / `next dev` 默认绑 `127.0.0.1`；Zod 统一到 v4
 - 模型配置默认隐藏社区中转视频 format（勾选后可见）；对象存储 UI 统一为 S3 兼容（七牛等走同一套），字段标签/占位中英对照
 
 ## [0.2.3] - 2026-09-02

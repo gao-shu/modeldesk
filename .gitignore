@@ -19,7 +19,6 @@ node_modules
 /data/**/*.db-*
 /data/.encryption-secret
 **/.encryption-secret
-/apps/radar-api/data/
 *.sqlite
 *.sqlite-*
 *.db
@@ -90,7 +89,6 @@ apps/desktop/src-tauri/resources/**
 !apps/desktop/src-tauri/resources/.gitkeep
 **/engine.zip
 engine.zip
-apps/radar-api/dist-bundle/
 .cache/
 
 # misc

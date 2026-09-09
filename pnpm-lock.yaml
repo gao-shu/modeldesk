@@ -16,6 +16,9 @@ importers:
       '@modeldesk/object-storage':
         specifier: workspace:*
         version: link:../../packages/object-storage
+      '@modeldesk/run-core':
+        specifier: workspace:*
+        version: link:../../packages/run-core
       '@modeldesk/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -53,6 +56,9 @@ importers:
       '@modeldesk/object-storage':
         specifier: workspace:*
         version: link:../../packages/object-storage
+      '@modeldesk/run-core':
+        specifier: workspace:*
+        version: link:../../packages/run-core
       '@modeldesk/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -80,13 +86,16 @@ importers:
     dependencies:
       '@modelcontextprotocol/sdk':
         specifier: ^1.30.0
-        version: 1.30.0(zod@3.25.76)
+        version: 1.30.0(zod@4.4.3)
       '@modeldesk/adapters':
         specifier: workspace:*
         version: link:../../packages/adapters
       '@modeldesk/object-storage':
         specifier: workspace:*
         version: link:../../packages/object-storage
+      '@modeldesk/run-core':
+        specifier: workspace:*
+        version: link:../../packages/run-core
       '@modeldesk/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -97,8 +106,8 @@ importers:
         specifier: ^12.11.1
         version: 12.11.1
       zod:
-        specifier: ^3.24.2
-        version: 3.25.76
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@types/better-sqlite3':
         specifier: ^7.6.13
@@ -124,6 +133,9 @@ importers:
       '@modeldesk/object-storage':
         specifier: workspace:*
         version: link:../../packages/object-storage
+      '@modeldesk/run-core':
+        specifier: workspace:*
+        version: link:../../packages/run-core
       '@modeldesk/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -254,6 +266,47 @@ importers:
       tsx:
         specifier: ^4.20.3
         version: 4.23.1
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
+  packages/run-core:
+    dependencies:
+      '@modeldesk/adapters':
+        specifier: workspace:*
+        version: link:../adapters
+      '@modeldesk/model-registry':
+        specifier: workspace:*
+        version: link:../model-registry
+      '@modeldesk/object-storage':
+        specifier: workspace:*
+        version: link:../object-storage
+      '@modeldesk/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@modeldesk/tos-storage':
+        specifier: workspace:*
+        version: link:../tos-storage
+      better-sqlite3:
+        specifier: ^12.11.1
+        version: 12.11.1
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    optionalDependencies:
+      sharp:
+        specifier: ^0.35.3
+        version: 0.35.3(@types/node@20.19.43)
+    devDependencies:
+      '@types/better-sqlite3':
+        specifier: ^7.6.13
+        version: 7.6.13
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
+      '@types/sharp':
+        specifier: ^0.32.0
+        version: 0.32.0(@types/node@20.19.43)
       typescript:
         specifier: ^5
         version: 5.9.3
@@ -3629,9 +3682,6 @@ packages:
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
 
-  zod@3.25.76:
-    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
-
   zod@4.4.3:
     resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
 
@@ -4288,7 +4338,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@modelcontextprotocol/sdk@1.30.0(zod@3.25.76)':
+  '@modelcontextprotocol/sdk@1.30.0(zod@4.4.3)':
     dependencies:
       '@hono/node-server': 2.1.0(hono@4.13.1)
       ajv: 8.20.0
@@ -4305,8 +4355,8 @@ snapshots:
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
-      zod: 3.25.76
-      zod-to-json-schema: 3.25.2(zod@3.25.76)
+      zod: 4.4.3
+      zod-to-json-schema: 3.25.2(zod@4.4.3)
     transitivePeerDependencies:
       - supports-color
 
@@ -7257,14 +7307,12 @@ snapshots:
 
   yocto-queue@0.1.0: {}
 
-  zod-to-json-schema@3.25.2(zod@3.25.76):
+  zod-to-json-schema@3.25.2(zod@4.4.3):
     dependencies:
-      zod: 3.25.76
+      zod: 4.4.3
 
   zod-validation-error@4.0.2(zod@4.4.3):
     dependencies:
       zod: 4.4.3
-
-  zod@3.25.76: {}
 
   zod@4.4.3: {}

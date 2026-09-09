@@ -25,6 +25,10 @@ modeldesk-gateway
 | `MODELDESK_GATEWAY_PORT` | `3310` | Port |
 | `MODELDESK_GATEWAY_TOKEN` | _(empty)_ | Optional Bearer（多值逗号分隔） |
 | `MODELDESK_GATEWAY_TOKENS_FILE` | _(empty)_ | 每行一个 token |
+| `MODELDESK_GATEWAY_REQUIRE_TOKEN` | _(off)_ | `1` = 即使 loopback 也必须带 token |
+| `MODELDESK_GATEWAY_ALLOW_OPEN` | _(off)_ | `1` = 无 token 时允许非 loopback Host（仅可信内网） |
+| `MODELDESK_GATEWAY_MAX_CONCURRENT` | `16` | 并发上限（`0` 关闭） |
+| `MODELDESK_GATEWAY_RPM` | `180` | 每分钟请求上限（`0` 关闭） |
 | `MODELDESK_DATA_DIR` | same as Web | SQLite / keys / aliases |
 
 ## Endpoints（与 Web 相同）

@@ -45,6 +45,9 @@ MVP 工具面：`list_models` / `run_text|image|video|audio` / `cancel_run`。�
 - **默认** Gateway API 挂在 Web/桌面 **`127.0.0.1:3300/v1`**（与 UI 同进程）  
 - 可选无头 `modeldesk-gateway` 默认 **`127.0.0.1:3310`**。勿把绑定改成公网网卡，除非你接受「端口可达就能花 Key」  
 - 可选 `MODELDESK_GATEWAY_TOKEN`（Bearer）仅为本地共享口令，**不是**多租户鉴权  
+- **无 token 时：** 仅 loopback Host 可调；非 loopback 需设 token，或显式 `MODELDESK_GATEWAY_ALLOW_OPEN=1`（仅可信内网）  
+- 本机护栏：`MODELDESK_GATEWAY_MAX_CONCURRENT` / `MODELDESK_GATEWAY_RPM`；访问日志为 JSON（不含 Key）  
+- Docker Compose 默认只把端口发布到宿主机 `127.0.0.1`；`pnpm --filter @modeldesk/web start` 默认绑 `127.0.0.1`  
 - 详见 [docs/external-access.md](./docs/external-access.md)、[apps/cli/README.md](./apps/cli/README.md)、[apps/gateway/README.md](./apps/gateway/README.md)
 
 ## 密钥与敏感文件

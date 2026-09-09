@@ -26,7 +26,7 @@ child.stderr.on("data", (d) => {
   err += d.toString("utf8");
 });
 
-await new Promise((r) => setTimeout(r, 2500));
+await new Promise((r) => setTimeout(r, 3500));
 
 try {
   const health = await fetch("http://127.0.0.1:3310/healthz").then((r) =>

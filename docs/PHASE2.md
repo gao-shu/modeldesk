@@ -62,9 +62,9 @@ CLI / MCP 走进程，不另开业务端口。
 | A4 | 可选本机调用方 token | `MODELDESK_GATEWAY_TOKEN`（可多值）/ `TOKENS_FILE`；非多租户 | done |
 | A5 | Gateway 冒烟与文档对齐 | `pnpm gateway:smoke`；README / external-access / PHASE2 / gateway-business 一致 | done |
 | A6 | **真实业务验收**（必做收口） | `pnpm gateway:accept`：仅经别名跑通一文一图（迷你漫剧旁白→封面） | done |
-| A7 | Web 设置页管理别名（可选） | 设置里查看/绑定别名，免手改 JSON | park |
+| A7 | Web 设置页管理别名（可选） | 设置里查看/绑定别名，免手改 JSON | done |
 
-> **Phase A 主线完成（A1–A6）**。A7 / C 为体验增强，不挡业务接入。业务短文：[gateway-business.md](./gateway-business.md)。
+> **Phase A 主线完成（A1–A7）**。C 为体验增强，不挡业务接入。业务短文：[gateway-business.md](./gateway-business.md)。
 
 ### B. Desk 维护（按需，不挡 A）
 
@@ -82,7 +82,7 @@ CLI / MCP 走进程，不另开业务端口。
 | C1 | 设置页「外部调用」补 Gateway 说明 | 别名、token、示例 curl / Client 一眼能抄 | done |
 | C2 | 桌面安装路径下无头 Gateway 与 Web 同 dataDir 再验 | 可选；默认业务已走 `:3300` 同进程 | park |
 | C3 | Client 使用短文（对接业务） | `docs/gateway-business.md` + Client README | done |
-| C4 | MCP/CLI 与 Gateway 能力对照表 | 何时用 CLI / MCP / Gateway 写清，避免三套文档打架 | todo |
+| C4 | MCP/CLI 与 Gateway 能力对照表 | 何时用 CLI / MCP / Gateway 写清，避免三套文档打架 | done |
 
 ### D. 远期增强（个人本机，有痛点再开）
 

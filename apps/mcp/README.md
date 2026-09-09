@@ -1,6 +1,6 @@
 # ModelDesk MCP (stdio)
 
-Local **agent entry** for Cursor / Claude Desktop / any MCP client. Uses the **same** SQLite data directory, encryption secret, and [`run-core`](../web/src/lib/server/run-core.ts) as the Web UI — not a second product.
+Local **agent entry** for Cursor / Claude Desktop / any MCP client. Uses the **same** SQLite data directory, encryption secret, and [`@modeldesk/run-core`](../../packages/run-core) as the Web UI — not a second product.
 
 ## Install
 

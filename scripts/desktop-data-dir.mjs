@@ -1,6 +1,6 @@
 /**
  * Shared helpers for desktop sidecar / packaging (plain Node, no TS).
- * Keep resolution rules in sync with apps/web/src/lib/server/paths.ts.
+ * Keep resolution rules in sync with packages/run-core/src/paths.ts.
  */
 import crypto from "node:crypto";
 import fs from "node:fs";

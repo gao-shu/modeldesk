@@ -10,6 +10,8 @@
  */
 
 import {
+  ensureDataDirs,
+  getDataDir,
   listRunModelsForAgent,
   runAudio,
   runCoreResultToPublic,
@@ -18,8 +20,7 @@ import {
   runVideo,
   type RunCoreAgentModality,
   type RunCoreOutcome,
-} from "@/lib/server/run-core";
-import { ensureDataDirs, getDataDir } from "@/lib/server/paths";
+} from "@modeldesk/run-core";
 
 const VERSION = "0.1.0";
 

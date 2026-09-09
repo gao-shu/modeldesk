@@ -1,6 +1,6 @@
 # ModelDesk CLI
 
-Thin wrapper over the shared Web **run-core** (same DB / keys as UI & MCP).
+Thin wrapper over shared **`@modeldesk/run-core`** (same DB / keys as UI & MCP).
 
 ## Install
 

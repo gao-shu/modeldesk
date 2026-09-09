@@ -24,6 +24,7 @@
   "dependencies": {
     "@modeldesk/adapters": "workspace:*",
     "@modeldesk/object-storage": "workspace:*",
+    "@modeldesk/run-core": "workspace:*",
     "@modeldesk/shared": "workspace:*",
     "@modeldesk/tos-storage": "workspace:*",
     "better-sqlite3": "^12.11.1"

@@ -7,10 +7,12 @@
 
 import http from "node:http";
 import { Readable } from "node:stream";
-import { handleGatewayRequest } from "@/lib/server/gateway/app";
-import { ensureDataDirs, getDataDir } from "@/lib/server/paths";
-import { aliasesFilePath } from "@/lib/server/gateway/aliases";
-import { loadGatewayTokens } from "@/lib/server/gateway/auth";
+import { ensureDataDirs, getDataDir } from "@modeldesk/run-core";
+import {
+  aliasesFilePath,
+  handleGatewayRequest,
+  loadGatewayTokens,
+} from "@modeldesk/run-core/gateway";
 
 const HOST = (process.env.MODELDESK_GATEWAY_HOST ?? "127.0.0.1").trim();
 const PORT = Number(process.env.MODELDESK_GATEWAY_PORT ?? "3310") || 3310;
@@ -84,11 +86,19 @@ async function main() {
 
   ensureDataDirs();
   const tokens = loadGatewayTokens();
+  const requireToken = process.env.MODELDESK_GATEWAY_REQUIRE_TOKEN === "1";
+  const allowOpen = process.env.MODELDESK_GATEWAY_ALLOW_OPEN === "1";
   log("dataDir", getDataDir());
   log("aliasesFile", aliasesFilePath());
-  log(
-    `auth ${tokens.size > 0 ? `on (${tokens.size} token(s))` : "off (loopback open)"}`,
-  );
+  if (tokens.size > 0) {
+    log(`auth on (${tokens.size} token(s))`);
+  } else if (allowOpen) {
+    log("auth off (ALLOW_OPEN=1 — any Host)");
+  } else if (requireToken) {
+    log("auth REQUIRE_TOKEN=1 but no tokens configured — all requests will 401");
+  } else {
+    log("auth off (loopback Host only; set MODELDESK_GATEWAY_TOKEN for LAN)");
+  }
   log(
     `listening http://${HOST}:${PORT} (optional headless; default API is Web :3300 /v1)`,
   );

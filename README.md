@@ -177,10 +177,10 @@ docker compose --env-file .env.docker up --build -d
 
 ```text
 modeldesk/
-├── apps/web/          # Next 界面与 run-core
+├── apps/web/          # Next 界面（server 经 shim 复用 run-core）
 ├── apps/desktop/      # Tauri 桌面壳
 ├── apps/cli · mcp · gateway
-├── packages/          # 适配器、模型注册、共享类型等
+├── packages/          # run-core、适配器、模型注册、共享类型等
 ├── docs/adapters/     # 厂商协议对照
 ├── docs/user-guide.md # 操作手册（图文）
 ├── docs/external-access.md
