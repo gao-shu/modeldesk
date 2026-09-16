@@ -1,20 +1,21 @@
 # ModelDesk
 
-**个人本机多业务中心：** 配好自己的 Key，在同一处跑通文 / 图 / 音 / 视；业务脚本再经本机 Gateway 稳定调用——数据与密钥都留在你自己的机器上。
+**Local multimodal API desk + OpenAI-compatible gateway** — your keys stay on your machine; point any SDK at `http://127.0.0.1:3300/v1`.
 
-```text
-配置模型 → 按模态实测 → 本机 Gateway / CLI / MCP 给业务调 → 产物可回看
-```
+**不想把 Key 交给第三方中转，又要多模态实测，业务只改 `base-url` 就能调。**
 
-| 下载 | 地址 |
-|------|------|
-| **Windows 安装包**（推荐国内） | [Gitee · v0.2.3](https://gitee.com/gaoshuteacher/modeldesk/releases/tag/v0.2.3) |
-| **Win / macOS 全量包** | [GitHub · v0.2.3](https://github.com/gao-shu/modeldesk/releases/tag/v0.2.3) |
-| **Gitee 源码** | [gaoshuteacher/modeldesk](https://gitee.com/gaoshuteacher/modeldesk) |
+[![Download Windows (Gitee)](https://img.shields.io/badge/Download-Windows%20(Gitee)-c71d23?style=for-the-badge)](https://gitee.com/gaoshuteacher/modeldesk/releases/tag/v0.2.3)
+[![Download Win / macOS (GitHub)](https://img.shields.io/badge/Download-Win%20%2F%20macOS%20(GitHub)-181717?style=for-the-badge&logo=github)](https://github.com/gao-shu/modeldesk/releases/tag/v0.2.3)
 
-> Gitee 单附件约有 **100MB** 上限，发行版目前放 **Windows `.exe`**；macOS `.dmg` 请从 GitHub 下载。
+> Gitee 附件约 **100MB** 上限，国内优先下 **Windows `.exe`**；macOS `.dmg` 请用 GitHub。
 
-**新手：** [5 分钟跑通第一张图](./docs/quickstart-first-image.md) · **操作手册（图文）：** [docs/user-guide.md](./docs/user-guide.md)
+**30 秒：** 配 Key → 出图 → `curl` 打 `/v1/chat/completions`
+
+![ModelDesk demo: configure key → generate image → curl gateway](./docs/screenshots/demo-30s.gif)
+
+**新手：** [5 分钟跑通第一张图](./docs/quickstart-first-image.md) · **操作手册：** [docs/user-guide.md](./docs/user-guide.md)
+
+---
 
 ## 界面预览
 
@@ -33,8 +34,6 @@
 **模型配置** · Key 磁盘加密 · 分类型筛选 · 连通性测试一键摸底
 
 ![模型配置](./docs/screenshots/models.png)
-
-↓ 下载安装包，本地配 Key 即可开测 → [Gitee（Win）](https://gitee.com/gaoshuteacher/modeldesk/releases/tag/v0.2.3) · [GitHub（全量）](https://github.com/gao-shu/modeldesk/releases/tag/v0.2.3)
 
 > **定位说明**  
 > - **个人本机**工具：无登录、无多租户、无配置云同步、不卖 Token  
@@ -153,12 +152,12 @@ modeldesk run text --model <注册表ID> --prompt "你好"
 ## Docker（本机）
 
 ```bash
-cp .env.docker.example .env.docker   # 修改 ENCRYPTION_SECRET，勿提交
+cp .env.example .env.docker   # 修改 ENCRYPTION_SECRET，勿提交
 docker compose --env-file .env.docker up --build -d
 ```
 
 默认宿主机：Web `http://127.0.0.1:3020`。  
-容器内可绑 `0.0.0.0`，**不要**把端口映射到公网。
+容器内可绑 `0.0.0.0`，**不要**把端口映射到公网。宝塔仅回环映射：`scripts/deploy/docker-compose.baota.yml`（见 [docs/deploy-baota.md](./docs/deploy-baota.md)）。
 
 ---
 
@@ -208,7 +207,7 @@ pnpm desktop:build
 
 ## 参与贡献
 
-- [CONTRIBUTING.md](./CONTRIBUTING.md) · [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) · [CHANGELOG.md](./CHANGELOG.md)  
+- [CONTRIBUTING.md](./CONTRIBUTING.md) · [CHANGELOG.md](./CHANGELOG.md)  
 - 公开推送前请执行：`pnpm check:oss`，并阅读 [SECURITY.md](./SECURITY.md)
 
 ---

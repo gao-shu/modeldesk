@@ -7,4 +7,4 @@ pnpm install
 pnpm dev
 ```
 
-See the root [README.md](../../README.md) and [PLAN.md](../../PLAN.md).
+See the root [README.md](../../README.md).

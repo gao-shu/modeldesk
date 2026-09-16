@@ -51,20 +51,14 @@ function findRepoRoot(): string | null {
     const abs = path.isAbsolute(fromEnv)
       ? path.normalize(fromEnv)
       : path.resolve(process.cwd(), fromEnv);
-    if (
-      fs.existsSync(path.join(abs, "pnpm-workspace.yaml")) ||
-      fs.existsSync(path.join(abs, "PLAN.md"))
-    ) {
+    if (fs.existsSync(path.join(abs, "pnpm-workspace.yaml"))) {
       return abs;
     }
   }
 
   let cur = process.cwd();
   for (let i = 0; i < 8; i++) {
-    if (
-      fs.existsSync(path.join(cur, "pnpm-workspace.yaml")) ||
-      fs.existsSync(path.join(cur, "PLAN.md"))
-    ) {
+    if (fs.existsSync(path.join(cur, "pnpm-workspace.yaml"))) {
       return cur;
     }
     const parent = path.dirname(cur);

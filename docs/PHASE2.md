@@ -121,7 +121,7 @@ CLI / MCP 走进程，不另开业务端口。
 
 ## 4. 近况备忘（2026-08-13）
 
-- [PHASE2-2W.md](./PHASE2-2W.md) 已收尾；Radar 整套已移除。  
+- [history/PHASE2-2W.md](./history/PHASE2-2W.md) 已收尾归档；Radar 整套已移除。  
 - 产品形态：**Web + 可选桌面 / CLI / MCP / Gateway**。  
 - Desk 主线够用；工程主线转入上表 **A → C**。
 

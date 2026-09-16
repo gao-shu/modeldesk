@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/) when tagg
 
 ## [Unreleased]
 
+### Changed
+
+- 仓库根目录收敛：`PLAN.md` / `PHASE2-2W` 归档到 `docs/history/`；删除 `CODE_OF_CONDUCT.md`；Docker 环境只保留 `.env.example`；宝塔 compose 挪到 `scripts/deploy/`
+
 ### Added
 
 - `@modeldesk/run-core`：CLI / MCP / Gateway / Web 共用内核；Web 仅薄 re-export

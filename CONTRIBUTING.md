@@ -46,7 +46,3 @@ MCP details: [apps/mcp/README.md](./apps/mcp/README.md). Keep MCP on the same ma
 - Do not commit secrets, `.env*`, SQLite DBs, or desktop `engine.zip` / `runtime/`.
 - Run `pnpm check:oss` before proposing a public-facing change.
 - Update adapter docs under `docs/adapters/` when changing API formats.
-
-## Code of conduct
-
-See [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md).

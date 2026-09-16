@@ -18,7 +18,7 @@ set -euo pipefail
 INSTALL_DIR="${MODELDESK_INSTALL_DIR:-/www/wwwroot/modeldesk}"
 REPO_URL="${MODELDESK_REPO_URL:-https://gitee.com/gaoshuteacher/modeldesk.git}"
 BRANCH="${MODELDESK_BRANCH:-main}"
-COMPOSE_FILES=(-f docker-compose.yml -f docker-compose.baota.yml)
+COMPOSE_FILES=(-f docker-compose.yml -f scripts/deploy/docker-compose.baota.yml)
 
 log() { printf '\n[modeldesk] %s\n' "$*"; }
 die() { printf '\n[modeldesk] ERROR: %s\n' "$*" >&2; exit 1; }
@@ -50,7 +50,7 @@ fi
 cd "$INSTALL_DIR"
 
 if [[ ! -f .env.docker ]]; then
-  cp .env.docker.example .env.docker
+  cp .env.example .env.docker
   secret="$(openssl rand -base64 32 | tr -d '\n')"
   if grep -q '^ENCRYPTION_SECRET=change-me' .env.docker 2>/dev/null; then
     sed -i "s|^ENCRYPTION_SECRET=.*|ENCRYPTION_SECRET=${secret}|" .env.docker
@@ -88,8 +88,8 @@ for i in $(seq 1 40); do
   4. 浏览器打开站点 → 设置 → 对象存储 → 配置七牛
 
   常用命令（在 /www/wwwroot/modeldesk）：
-    docker compose -f docker-compose.yml -f docker-compose.baota.yml --env-file .env.docker logs -f
-    docker compose -f docker-compose.yml -f docker-compose.baota.yml --env-file .env.docker restart
+    docker compose -f docker-compose.yml -f scripts/deploy/docker-compose.baota.yml --env-file .env.docker logs -f
+    docker compose -f docker-compose.yml -f scripts/deploy/docker-compose.baota.yml --env-file .env.docker restart
 
   ⚠ ModelDesk 无登录页，公网暴露前请加 IP 白名单或 Nginx 基础认证。
 ══════════════════════════════════════════════════════════════
@@ -99,4 +99,4 @@ EOF
   sleep 3
 done
 
-die "启动超时。查看日志: docker compose -f docker-compose.yml -f docker-compose.baota.yml --env-file .env.docker logs --tail=80"
+die "启动超时。查看日志: docker compose -f docker-compose.yml -f scripts/deploy/docker-compose.baota.yml --env-file .env.docker logs --tail=80"

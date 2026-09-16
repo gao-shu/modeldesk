@@ -76,14 +76,18 @@ else
 fi
 
 if [[ ! -f .env.docker ]]; then
-  cp .env.docker.example .env.docker
+  cp .env.example .env.docker
   if command -v openssl >/dev/null 2>&1; then
     SECRET="$(openssl rand -base64 32 | tr -d '\n')"
   else
     SECRET="$(head -c 32 /dev/urandom | base64 | tr -d '\n')"
   fi
   sed -i "s|^ENCRYPTION_SECRET=.*|ENCRYPTION_SECRET=${SECRET}|" .env.docker
-  sed -i "s|^WEB_HOST_PORT=.*|WEB_HOST_PORT=${WEB_PORT}|" .env.docker
+  if grep -q '^WEB_HOST_PORT=' .env.docker; then
+    sed -i "s|^WEB_HOST_PORT=.*|WEB_HOST_PORT=${WEB_PORT}|" .env.docker
+  else
+    echo "WEB_HOST_PORT=${WEB_PORT}" >> .env.docker
+  fi
   log "已生成 .env.docker（请备份 ENCRYPTION_SECRET）"
 else
   log "沿用已有 .env.docker"

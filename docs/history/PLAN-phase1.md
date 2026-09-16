@@ -1,8 +1,8 @@
 # ModelDesk · Phase 1（公开摘要 · 历史）
 
-> Phase 1 已完成；后续 backlog 见 [docs/PHASE2.md](./docs/PHASE2.md)。  
-> 本仓是**本机单用户** AI 接口台，安全边界见 [SECURITY.md](./SECURITY.md)。  
-> **现状以 [README.md](./README.md) 为准**；本文仅作 Phase 1 决策摘要，目录/路由已按当前树修订。
+> Phase 1 已完成；后续 backlog 见 [../PHASE2.md](../PHASE2.md)。  
+> 本仓是**本机单用户** AI 接口台，安全边界见 [../../SECURITY.md](../../SECURITY.md)。  
+> **现状以 [../../README.md](../../README.md) 为准**；本文仅作 Phase 1 决策摘要（已从仓库根目录迁入 `docs/history/`）。
 
 ---
 
@@ -51,9 +51,10 @@ modeldesk/
 │   └── gateway-client/   # Phase A official Gateway client
 ├── data/          # 本地数据（gitignore）
 ├── docs/
-│   └── adapters/  # 厂商协议对照档案
-├── scripts/       # smoke / check:oss / 桌面打包等
-├── PLAN.md
+│   ├── adapters/
+│   └── history/   # Phase 1 摘要等归档
+├── scripts/
+│   └── deploy/    # 宝塔 compose 覆盖等
 ├── SECURITY.md
 └── README.md
 ```
