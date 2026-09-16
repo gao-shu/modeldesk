@@ -68,16 +68,9 @@ function requestHostname(req: Request): string {
 
 function resolveOpenApiPath(): string | null {
   const here = path.dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    // packages/run-core/src/gateway → repo apps/web/public
-    path.resolve(here, "../../../../apps/web/public/openapi.yaml"),
-    // packages/run-core/src/gateway → repo apps/gateway
-    path.resolve(here, "../../../../apps/gateway/openapi.yaml"),
-  ];
-  for (const p of candidates) {
-    if (fs.existsSync(p)) return p;
-  }
-  return null;
+  // Single source of truth: apps/web/public/openapi.yaml
+  const p = path.resolve(here, "../../../../apps/web/public/openapi.yaml");
+  return fs.existsSync(p) ? p : null;
 }
 
 function modelsResponse(url: URL): Response {

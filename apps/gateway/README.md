@@ -9,7 +9,7 @@
 | **默认** Web / Desktop | `http://127.0.0.1:3300` | 日常本机业务 |
 | 可选 headless | `http://127.0.0.1:3310` | `modeldesk-gateway` / `pnpm gateway` |
 
-Contract: [`../web/public/openapi.yaml`](../web/public/openapi.yaml)（本目录有同步副本）  
+Contract: [`../web/public/openapi.yaml`](../web/public/openapi.yaml)（唯一源；本目录不再保留副本）  
 Client: [`@modeldesk/gateway-client`](../../packages/gateway-client)（默认 `baseUrl` → `:3300`）
 
 ## Headless 启动

@@ -2,7 +2,7 @@
 
 Official thin HTTP client for **ModelDesk Gateway** (Phase A).
 
-Contract source of truth: [`apps/gateway/openapi.yaml`](../../apps/gateway/openapi.yaml).
+Contract source of truth: [`apps/web/public/openapi.yaml`](../../apps/web/public/openapi.yaml).
 
 ## Usage
 

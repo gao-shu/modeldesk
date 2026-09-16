@@ -1,6 +1,6 @@
 /**
  * Official thin client for ModelDesk Gateway.
- * Contract: apps/gateway/openapi.yaml (frozen for Phase A consumers).
+ * Contract: apps/web/public/openapi.yaml (frozen for Phase A consumers).
  */
 
 export type GatewayClientOptions = {

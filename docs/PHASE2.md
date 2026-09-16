@@ -58,7 +58,7 @@ CLI / MCP 走进程，不另开业务端口。
 |----|------|------|------|
 | A1 | 全模态 HTTP：文 / 图 / 音 / 视 | 各模态至少一次成功生成；产物可 `GET /v1/artifacts/:id`（音乐模态已移除） | done |
 | A2 | 稳定别名 `llm-default` 等 | 文件 / env / `PUT /v1/aliases`；`GET /v1/models` 可见 | done |
-| A3 | 冻结 OpenAPI + 官方 Client | `apps/gateway/openapi.yaml` + `@modeldesk/gateway-client` | done |
+| A3 | 冻结 OpenAPI + 官方 Client | `apps/web/public/openapi.yaml` + `@modeldesk/gateway-client` | done |
 | A4 | 可选本机调用方 token | `MODELDESK_GATEWAY_TOKEN`（可多值）/ `TOKENS_FILE`；非多租户 | done |
 | A5 | Gateway 冒烟与文档对齐 | `pnpm gateway:smoke`；README / external-access / PHASE2 / gateway-business 一致 | done |
 | A6 | **真实业务验收**（必做收口） | `pnpm gateway:accept`：仅经别名跑通一文一图（迷你漫剧旁白→封面） | done |
