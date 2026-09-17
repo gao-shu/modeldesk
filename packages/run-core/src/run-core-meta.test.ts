@@ -28,5 +28,8 @@ describe("run-core-meta", () => {
     assert.equal(prepareErrorHttpStatus("modality_mismatch"), 400);
     assert.equal(prepareErrorHttpStatus("no_key"), 400);
     assert.equal(prepareErrorHttpStatus("no_base_url"), 400);
+    assert.equal(prepareErrorHttpStatus("too_few_models"), 400);
+    assert.equal(prepareErrorHttpStatus("too_many_models"), 400);
+    assert.equal(prepareErrorHttpStatus("duplicate_models"), 400);
   });
 });

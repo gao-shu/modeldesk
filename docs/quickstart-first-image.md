@@ -1,15 +1,18 @@
 # 5 分钟：跑通第一张图
 
-面向第一次安装的用户。目标：装好 ModelDesk → 配一个图片模型 Key → 生成并看到结果。
+面向第一次安装的用户。目标：装好 ModelDesk → 配一个图片模型 Key → 生成并看到结果 →（可选）Compare / Use this model。
 
 ## 1. 下载并安装
 
 1. 打开发行版（任选其一）：
-   - **Windows（国内）：** [Gitee · v0.1.0](https://gitee.com/gaoshuteacher/modeldesk/releases/tag/v0.1.0) → `ModelDesk_0.1.0_x64-setup.exe`
-   - **Win / macOS 全量：** [GitHub · v0.1.0](https://github.com/gao-shu/modeldesk/releases/tag/v0.1.0)
+   - **Windows（推荐）：** [GitHub · v0.2.1](https://github.com/gao-shu/modeldesk/releases/tag/v0.2.1) → [`ModelDesk_0.2.1_x64-setup.exe`](https://github.com/gao-shu/modeldesk/releases/download/v0.2.1/ModelDesk_0.2.1_x64-setup.exe)
+   - **macOS：** [GitHub · v0.1.0](https://github.com/gao-shu/modeldesk/releases/tag/v0.1.0)（含 `.dmg`）
+   - **源码镜像：** [Gitee · modeldesk](https://gitee.com/gaoshuteacher/modeldesk)
 2. 安装并启动 **ModelDesk**。
 
 > 首次启动会解压内置引擎，大约 **1～2 分钟**，属正常现象。托盘图标出现后，窗口会打开本机界面（`http://127.0.0.1:3300`）。
+
+> 仓库源码版本为 **0.2.3**；GitHub 上目前带安装包的最新 Release 是 **v0.2.1**（尚无 `v0.2.3` 安装包附件）。
 
 Windows 数据默认在：`%LOCALAPPDATA%\ModelDesk\`。
 
@@ -38,7 +41,17 @@ Windows 数据默认在：`%LOCALAPPDATA%\ModelDesk\`。
 
 更多成品集中在 **生成结果**。
 
-## 5. 可选：给 Cursor 用
+## 5. 可选：Compare → Use this model
+
+配好 **至少两个同模态** 模型后：
+
+1. 打开 **Compare**（`/runs/compare`）
+2. 选择 Model A / Model B（最多 3 个）
+3. 输入同一提示词 → **Run All**
+4. 查看 latency / TTFT / tokens / 错误
+5. 在结果卡点 **Use this model**，复制 curl / Python / Java（指向 `http://127.0.0.1:3300/v1`）
+
+## 6. 可选：给 Cursor 用
 
 同一数据目录下，脚本 / Agent 可复用模型：
 

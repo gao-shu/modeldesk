@@ -182,19 +182,34 @@ export type CompareSideInput = {
   modelSnapshot?: Record<string, unknown>;
 };
 
+/** Compare v1: 2–3 models, one eval_runs row (mode=compare), N eval_jobs. */
+export const COMPARE_MODEL_MIN = 2;
+export const COMPARE_MODEL_MAX = 3;
+
 export function createCompareRun(input: {
   prompt: string;
   temperature?: number | null;
   maxTokens?: number | null;
   params?: Record<string, unknown> | null;
-  sides: [CompareSideInput, CompareSideInput];
+  sides: CompareSideInput[];
   suiteId?: string | null;
   caseId?: string | null;
   modality?: string;
-}): { run: EvalRunPublic; jobs: [EvalJobPublic, EvalJobPublic] } {
+}): { run: EvalRunPublic; jobs: EvalJobPublic[] } {
+  const n = input.sides.length;
+  if (n < COMPARE_MODEL_MIN || n > COMPARE_MODEL_MAX) {
+    throw new Error(
+      `Compare requires ${COMPARE_MODEL_MIN}–${COMPARE_MODEL_MAX} models, got ${n}`,
+    );
+  }
+  const ids = input.sides.map((s) => s.modelId);
+  if (new Set(ids).size !== ids.length) {
+    throw new Error("Compare modelIds must be unique");
+  }
+
   const db = getDb();
   const runId = randomUUID();
-  const jobIds = [randomUUID(), randomUUID()] as const;
+  const jobIds = input.sides.map(() => randomUUID());
   const ts = nowIso();
 
   const config = {
@@ -246,7 +261,7 @@ export function createCompareRun(input: {
 
   return {
     run: toPublicRun(getRun(runId)!),
-    jobs: [toPublicJob(getJob(jobIds[0])!), toPublicJob(getJob(jobIds[1])!)],
+    jobs: jobIds.map((id) => toPublicJob(getJob(id)!)),
   };
 }
 

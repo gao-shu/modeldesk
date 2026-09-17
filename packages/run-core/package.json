@@ -13,7 +13,7 @@
   "types": "./src/index.ts",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test src/run-core-meta.test.ts src/gateway/video-task.test.ts src/media-url-list.test.ts src/gateway/auth.test.ts src/gateway/rate-limit.test.ts",
+    "test": "node --import ./scripts/register-ts.mjs --experimental-strip-types --test src/run-core-meta.test.ts src/run-compare.test.ts src/gateway/video-task.test.ts src/media-url-list.test.ts src/gateway/auth.test.ts src/gateway/rate-limit.test.ts",
     "test:unit": "pnpm test"
   },
   "dependencies": {

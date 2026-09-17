@@ -31,7 +31,10 @@ export type RunCorePrepareErrorCode =
   | "not_found"
   | "no_key"
   | "no_base_url"
-  | "modality_mismatch";
+  | "modality_mismatch"
+  | "too_few_models"
+  | "too_many_models"
+  | "duplicate_models";
 
 export function prepareErrorHttpStatus(code: RunCorePrepareErrorCode): number {
   if (code === "not_found") return 404;

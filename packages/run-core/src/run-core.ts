@@ -29,7 +29,7 @@ import {
   clearRunAbort,
   registerRunAbort,
 } from "./run-abort";
-import { createSingleRun } from "./runs";
+import { createCompareRun, createSingleRun, COMPARE_MODEL_MAX, COMPARE_MODEL_MIN } from "./runs";
 import {
   isRunCoreAgentModality,
   isRunCoreMvpModality,
@@ -318,6 +318,329 @@ export async function runSingleModel(
     params,
     model: modelMeta,
     result,
+  };
+}
+
+export type RunCompareModelsInput = {
+  modelIds: string[];
+  prompt: string;
+  temperature?: number | null;
+  maxTokens?: number | null;
+  params?: Record<string, unknown> | null;
+  messages?: ChatMessage[] | null;
+  suiteId?: string | null;
+  caseId?: string | null;
+  signal?: AbortSignal | null;
+  /** Expect all models to match this modality (required for Compare UI). */
+  expectModality: string;
+  /**
+   * Fired once after the compare run + jobs exist, before parallel execute.
+   * Return an AbortSignal used for all slots (e.g. registerRunAbort).
+   */
+  onPrepared?: (info: {
+    runId: string;
+    modality: string;
+    params: Record<string, unknown>;
+    sides: Array<{
+      slot: string;
+      jobId: string;
+      model: RunPreparedInfo["model"];
+    }>;
+  }) => AbortSignal | void | null;
+  /** SSE events include slot + modelId (via executeModelJob slotPayload). */
+  onEvent?: (event: string, data: unknown) => void;
+};
+
+export type RunCompareSideResult = {
+  slot: string;
+  jobId: string;
+  model: RunPreparedInfo["model"];
+  result: JobExecResult;
+};
+
+export type RunCompareCompleted = {
+  kind: "completed";
+  runId: string;
+  modality: string;
+  params: Record<string, unknown>;
+  sides: RunCompareSideResult[];
+};
+
+export type RunCompareOutcome = RunCorePrepareError | RunCompareCompleted;
+
+type PreparedCompareSide = {
+  slot: string;
+  row: ModelRow;
+  apiKey: string | null;
+  publicModel: ModelPublic;
+  apiFormat: string;
+  params: Record<string, unknown>;
+  temperature: number | null;
+  maxTokens: number | null;
+  modelMeta: RunPreparedInfo["model"];
+  modelSnapshot: Record<string, unknown>;
+};
+
+/**
+ * Validate compare model set without creating a run (HTTP 4xx before SSE).
+ */
+export function checkCompareModelsReady(
+  modelIds: string[],
+  expectModality: string,
+): RunCorePrepareError | { ok: true; sides: PreparedCompareSide[] } {
+  if (modelIds.length < COMPARE_MODEL_MIN) {
+    return {
+      kind: "prepare_error",
+      error: `Compare requires at least ${COMPARE_MODEL_MIN} models`,
+      code: "too_few_models",
+    };
+  }
+  if (modelIds.length > COMPARE_MODEL_MAX) {
+    return {
+      kind: "prepare_error",
+      error: `Compare supports at most ${COMPARE_MODEL_MAX} models`,
+      code: "too_many_models",
+    };
+  }
+  if (new Set(modelIds).size !== modelIds.length) {
+    return {
+      kind: "prepare_error",
+      error: "Compare modelIds must be unique",
+      code: "duplicate_models",
+    };
+  }
+
+  const sides: PreparedCompareSide[] = [];
+  for (let i = 0; i < modelIds.length; i++) {
+    const modelId = modelIds[i]!;
+    const ready = checkRunModelReady(modelId, expectModality);
+    if (!("ok" in ready)) return ready;
+
+    const { row, apiKey } = ready;
+    const publicModel = toPublicModel(row);
+    const apiFormat = resolveApiFormatId({
+      modality: row.modality,
+      defaults: publicModel.defaults,
+      provider: publicModel.provider,
+      baseUrl: publicModel.baseUrl,
+      modelId: publicModel.modelId,
+    });
+    const params = resolveRunParamsForFormat(
+      apiFormat,
+      row.modality,
+      publicModel.defaults,
+      {},
+    );
+    const temperature =
+      typeof params.temperature === "number" ? params.temperature : null;
+    const maxTokens =
+      typeof params.max_tokens === "number" ? params.max_tokens : null;
+    const modelMeta: RunPreparedInfo["model"] = {
+      id: publicModel.id,
+      name: publicModel.name,
+      modelId: publicModel.modelId,
+      provider: publicModel.provider,
+      modality: publicModel.modality,
+    };
+    sides.push({
+      slot: String(i),
+      row,
+      apiKey,
+      publicModel,
+      apiFormat,
+      params,
+      temperature,
+      maxTokens,
+      modelMeta,
+      modelSnapshot: {
+        id: publicModel.id,
+        name: publicModel.name,
+        provider: publicModel.provider,
+        modelId: publicModel.modelId,
+        baseUrl: publicModel.baseUrl,
+        modality: publicModel.modality,
+        defaults: { api_format: apiFormat },
+      },
+    });
+  }
+
+  return { ok: true, sides };
+}
+
+/**
+ * One compare run + N jobs → parallel executeModelJob (slots "0"|"1"|"2").
+ * Does not call runSingleModel.
+ */
+export async function runCompareModels(
+  input: RunCompareModelsInput,
+): Promise<RunCompareOutcome> {
+  const checked = checkCompareModelsReady(input.modelIds, input.expectModality);
+  if (!("ok" in checked)) return checked;
+
+  const preparedSides = checked.sides.map((side) => {
+    const params = resolveRunParamsForFormat(
+      side.apiFormat,
+      side.row.modality,
+      side.publicModel.defaults,
+      {
+        ...(input.params ?? {}),
+        ...(input.temperature != null
+          ? { temperature: input.temperature }
+          : {}),
+        ...(input.maxTokens != null ? { max_tokens: input.maxTokens } : {}),
+      },
+    );
+    const temperature =
+      typeof params.temperature === "number" ? params.temperature : null;
+    const maxTokens =
+      typeof params.max_tokens === "number" ? params.max_tokens : null;
+    return { ...side, params, temperature, maxTokens };
+  });
+
+  // Shared resolved params from first side (same prompt/overrides for all).
+  const sharedParams = preparedSides[0]!.params;
+  const temperature = preparedSides[0]!.temperature;
+  const maxTokens = preparedSides[0]!.maxTokens;
+
+  const prompt =
+    input.messages && input.messages.length > 0
+      ? chatMessagesToStoragePrompt(input.messages) || input.prompt
+      : input.prompt;
+
+  const { run, jobs } = createCompareRun({
+    prompt,
+    temperature,
+    maxTokens,
+    params: sharedParams,
+    modality: input.expectModality,
+    suiteId: input.suiteId,
+    caseId: input.caseId,
+    sides: preparedSides.map((s) => ({
+      modelId: s.row.id,
+      modelSnapshot: s.modelSnapshot,
+    })),
+  });
+
+  const sideMeta = preparedSides.map((s, i) => ({
+    slot: s.slot,
+    jobId: jobs[i]!.id,
+    model: s.modelMeta,
+  }));
+
+  const fromPrepared = input.onPrepared?.({
+    runId: run.id,
+    modality: input.expectModality,
+    params: sharedParams,
+    sides: sideMeta,
+  });
+  const signal =
+    fromPrepared instanceof AbortSignal
+      ? fromPrepared
+      : (input.signal ?? null);
+
+  const wrapEvent =
+    input.onEvent == null
+      ? undefined
+      : (event: string, data: unknown) => {
+          // executeModelJob already injects slot; ensure modelId is present.
+          if (data && typeof data === "object" && !Array.isArray(data)) {
+            const d = data as Record<string, unknown>;
+            const slot = d.slot != null ? String(d.slot) : null;
+            const side =
+              slot != null
+                ? preparedSides.find((s) => s.slot === slot)
+                : undefined;
+            input.onEvent?.(event, {
+              ...d,
+              ...(side ? { modelId: side.row.id } : {}),
+            });
+            return;
+          }
+          input.onEvent?.(event, data);
+        };
+
+  const sideResults = await Promise.all(
+    preparedSides.map(async (side, i) => {
+      const job = jobs[i]!;
+      wrapEvent?.("status", {
+        slot: side.slot,
+        modelId: side.row.id,
+        status: "running",
+      });
+      const result = await executeModelJob({
+        runId: run.id,
+        jobId: job.id,
+        row: side.row,
+        apiKey: side.apiKey ?? "mock",
+        prompt,
+        temperature: side.temperature,
+        maxTokens: side.maxTokens,
+        params: side.params,
+        messages: input.messages,
+        signal,
+        onEvent: wrapEvent,
+        slot: side.slot,
+      });
+
+      // Emit terminal event as soon as this slot finishes (do not wait for siblings).
+      if (result.cancelled) {
+        wrapEvent?.("error", {
+          slot: side.slot,
+          modelId: side.row.id,
+          jobId: job.id,
+          runId: run.id,
+          message: "已取消",
+          cancelled: true,
+          latencyMs: result.latencyMs,
+          ttftMs: result.ttftMs,
+          partialContent: result.content || undefined,
+        });
+      } else if (result.ok) {
+        wrapEvent?.("done", {
+          slot: side.slot,
+          modelId: side.row.id,
+          runId: run.id,
+          jobId: job.id,
+          latencyMs: result.latencyMs,
+          ttftMs: result.ttftMs,
+          inputTokens: result.inputTokens,
+          outputTokens: result.outputTokens,
+          costUsd: result.costUsd,
+          artifactId: result.artifactId,
+          artifactIds: result.artifactIds,
+          contentLength: result.content.length,
+          modality: input.expectModality,
+          artifactMeta: result.artifactMeta ?? null,
+          content: result.content,
+        });
+      } else {
+        wrapEvent?.("error", {
+          slot: side.slot,
+          modelId: side.row.id,
+          runId: run.id,
+          jobId: job.id,
+          message: result.error ?? "Run failed",
+          latencyMs: result.latencyMs,
+          ttftMs: result.ttftMs,
+          partialContent: result.content || undefined,
+        });
+      }
+
+      return {
+        slot: side.slot,
+        jobId: job.id,
+        model: side.modelMeta,
+        result,
+      } satisfies RunCompareSideResult;
+    }),
+  );
+
+  return {
+    kind: "completed",
+    runId: run.id,
+    modality: input.expectModality,
+    params: sharedParams,
+    sides: sideResults,
   };
 }
 

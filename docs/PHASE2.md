@@ -1,4 +1,7 @@
-# Phase 2 · 个人本机多业务中心
+# Phase 2 · 个人本机多业务中心（历史备忘）
+
+> **对外主叙事已切换：** [PRODUCT.md](./PRODUCT.md) — **Test. Compare. Use.**（100 Star 产品冻结）。  
+> 本文保留 Gateway 收口任务与历史决策，**不再**作为 README / 首页产品主线。
 
 > 主仓：`modeldesk` · 包名 `@modeldesk/*`  
 > **定位（已锁定）：** 个人本机多业务中心 —— 自己配 Key、自己实测、自己的业务脚本/程序来调。  
